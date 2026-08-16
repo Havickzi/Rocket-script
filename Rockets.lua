@@ -1,3 +1,49 @@
+-- V7 Xeno/Delta + Ручной баланс + Анти-бан
+-- ROCKET версия 7.0 (Anti-Ban)
+
+local player = game.Players.LocalPlayer
+
+-- ===== МАСКИРОВКА =====
+local function getRandomName()
+    local names = {"SystemUI", "Background", "Overlay", "Notification", "MenuUI"}
+    return names[math.random(#names)] .. math.random(100,999)
+end
+
+-- ===== ОБХОД GUI-ДЕТЕКТА =====
+local gui = Instance.new("ScreenGui")
+gui.Name = getRandomName()
+gui.Parent = game:GetService("CoreGui")
+gui.ResetOnSpawn = false
+
+-- ===== АНТИ-ЛОГГИНГ =====
+local oldNew = Instance.new
+Instance.new = function(className, parent)
+    if className == "TextButton" or className == "TextLabel" then
+        local obj = oldNew(className)
+        obj.Name = getRandomName()
+        return obj
+    end
+    return oldNew(className, parent)
+end
+
+-- ===== СЛУЧАЙНЫЕ ЗАДЕРЖКИ =====
+local function waitTime(t)
+    local delay = t * (0.9 + math.random() * 0.2)
+    if task and task.wait then
+        return task.wait(delay)
+    else
+        return wait(delay)
+    end
+end
+
+waitTime(0.3 + math.random() * 0.2)
+
+-- ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (скрытые) =====
+local selectedPlayer = nil
+local stopFlag = false
+local isRunning = false
+
+
 -- V7 Xeno/Delta + Ручной баланс
 -- Вы сами вводите текущий баланс, скрипт считает остаток
 -- ROCKET версия 7.0 (Manual Balance)
