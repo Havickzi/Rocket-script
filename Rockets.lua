@@ -1,6 +1,6 @@
--- V7 Xeno/Delta Universal (ИСПРАВЛЕННАЯ)
--- Полный функционал V7
--- ROCKET версия 7.0 (Xeno Edition)
+-- V7 Xeno/Delta + Ручной баланс
+-- Вы сами вводите текущий баланс, скрипт считает остаток
+-- ROCKET версия 7.0 (Manual Balance)
 
 local player = game.Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -16,14 +16,6 @@ local function waitTime(t)
     end
 end
 
-local function spawnFunc(f)
-    if task and task.spawn then
-        return task.spawn(f)
-    else
-        return spawn(f)
-    end
-end
-
 waitTime(0.5)
 
 -- ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
@@ -33,8 +25,8 @@ local isRunning = false
 
 -- ===== GUI =====
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0.85, 0, 0.80, 0)
-main.Position = UDim2.new(0.075, 0, 0.10, 0)
+main.Size = UDim2.new(0.85, 0, 0.85, 0)
+main.Position = UDim2.new(0.075, 0, 0.075, 0)
 main.BackgroundColor3 = Color3.fromRGB(18, 8, 28)
 main.BackgroundTransparency = 0.05
 main.BorderSizePixel = 2
@@ -49,7 +41,7 @@ corner.Parent = main
 
 -- Заголовок
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0.10, 0)
+title.Size = UDim2.new(1, 0, 0.08, 0)
 title.Text = "⚡ ROCKET · РЕСЕТЫ ⚡"
 title.TextColor3 = Color3.fromRGB(200, 100, 255)
 title.TextScaled = true
@@ -82,10 +74,63 @@ close.MouseButton1Click:Connect(function()
     main.Visible = false
 end)
 
--- Список игроков
+-- ===== БЛОК БАЛАНСА (НОВЫЙ) =====
+local balanceFrame = Instance.new("Frame")
+balanceFrame.Size = UDim2.new(1, -10, 0.07, 0)
+balanceFrame.Position = UDim2.new(0, 5, 0.09, 0)
+balanceFrame.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
+balanceFrame.BackgroundTransparency = 0.2
+balanceFrame.BorderSizePixel = 2
+balanceFrame.BorderColor3 = Color3.fromRGB(100, 40, 180)
+balanceFrame.Parent = main
+
+local balanceCorner = Instance.new("UICorner")
+balanceCorner.CornerRadius = UDim.new(0, 12)
+balanceCorner.Parent = balanceFrame
+
+-- Поле для ввода текущего баланса
+local balanceLabel = Instance.new("TextLabel")
+balanceLabel.Size = UDim2.new(0.3, 0, 1, 0)
+balanceLabel.Position = UDim2.new(0.02, 0, 0, 0)
+balanceLabel.Text = "💰 БАЛАНС:"
+balanceLabel.TextScaled = true
+balanceLabel.BackgroundTransparency = 1
+balanceLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
+balanceLabel.Font = Enum.Font.GothamBold
+balanceLabel.Parent = balanceFrame
+
+local balanceInput = Instance.new("TextBox")
+balanceInput.Size = UDim2.new(0.25, 0, 0.85, 0)
+balanceInput.Position = UDim2.new(0.32, 0, 0.075, 0)
+balanceInput.Text = "10000"
+balanceInput.TextScaled = true
+balanceInput.BackgroundColor3 = Color3.fromRGB(10, 5, 20)
+balanceInput.TextColor3 = Color3.fromRGB(220, 180, 255)
+balanceInput.BorderSizePixel = 2
+balanceInput.BorderColor3 = Color3.fromRGB(100, 40, 180)
+balanceInput.ClearTextOnFocus = false
+balanceInput.Font = Enum.Font.GothamBold
+balanceInput.Parent = balanceFrame
+
+local balanceCorner2 = Instance.new("UICorner")
+balanceCorner2.CornerRadius = UDim.new(0, 8)
+balanceCorner2.Parent = balanceInput
+
+-- Поле для отображения остатка (только для чтения)
+local remainLabel = Instance.new("TextLabel")
+remainLabel.Size = UDim2.new(0.35, 0, 1, 0)
+remainLabel.Position = UDim2.new(0.62, 0, 0, 0)
+remainLabel.Text = "📉 ОСТАНЕТСЯ: $0"
+remainLabel.TextScaled = true
+remainLabel.BackgroundTransparency = 1
+remainLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+remainLabel.Font = Enum.Font.GothamBold
+remainLabel.Parent = balanceFrame
+
+-- ===== СПИСОК ИГРОКОВ =====
 local list = Instance.new("ScrollingFrame")
-list.Size = UDim2.new(1, -10, 0.38, 0)
-list.Position = UDim2.new(0, 5, 0.12, 0)
+list.Size = UDim2.new(1, -10, 0.30, 0)
+list.Position = UDim2.new(0, 5, 0.17, 0)
 list.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
 list.BackgroundTransparency = 0.2
 list.BorderSizePixel = 1
@@ -98,10 +143,33 @@ local listCorner = Instance.new("UICorner")
 listCorner.CornerRadius = UDim.new(0, 12)
 listCorner.Parent = list
 
--- Поле ввода
+-- ===== ПОЛЕ ВВОДА КОЛИЧЕСТВА РЕСЕТОВ =====
+local inputFrame = Instance.new("Frame")
+inputFrame.Size = UDim2.new(1, -10, 0.07, 0)
+inputFrame.Position = UDim2.new(0, 5, 0.49, 0)
+inputFrame.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
+inputFrame.BackgroundTransparency = 0.2
+inputFrame.BorderSizePixel = 2
+inputFrame.BorderColor3 = Color3.fromRGB(100, 40, 180)
+inputFrame.Parent = main
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 12)
+inputCorner.Parent = inputFrame
+
+local inputLabel = Instance.new("TextLabel")
+inputLabel.Size = UDim2.new(0.3, 0, 1, 0)
+inputLabel.Position = UDim2.new(0.02, 0, 0, 0)
+inputLabel.Text = "🔢 КОЛ-ВО:"
+inputLabel.TextScaled = true
+inputLabel.BackgroundTransparency = 1
+inputLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
+inputLabel.Font = Enum.Font.GothamBold
+inputLabel.Parent = inputFrame
+
 local inputBox = Instance.new("TextBox")
-inputBox.Size = UDim2.new(0.60, 0, 0.07, 0)
-inputBox.Position = UDim2.new(0.20, 0, 0.52, 0)
+inputBox.Size = UDim2.new(0.6, 0, 0.85, 0)
+inputBox.Position = UDim2.new(0.35, 0, 0.075, 0)
 inputBox.Text = "1"
 inputBox.TextScaled = true
 inputBox.BackgroundColor3 = Color3.fromRGB(10, 5, 20)
@@ -110,32 +178,39 @@ inputBox.BorderSizePixel = 2
 inputBox.BorderColor3 = Color3.fromRGB(100, 40, 180)
 inputBox.ClearTextOnFocus = false
 inputBox.Font = Enum.Font.GothamBold
-inputBox.Parent = main
+inputBox.Parent = inputFrame
 
-local inputCorner = Instance.new("UICorner")
-inputCorner.CornerRadius = UDim.new(0, 8)
-inputCorner.Parent = inputBox
+local inputCorner2 = Instance.new("UICorner")
+inputCorner2.CornerRadius = UDim.new(0, 8)
+inputCorner2.Parent = inputBox
 
--- Счётчик
-local counterLabel = Instance.new("TextLabel")
-counterLabel.Size = UDim2.new(1, -10, 0.06, 0)
-counterLabel.Position = UDim2.new(0, 5, 0.60, 0)
-counterLabel.Text = "ВЫПОЛНЕНО: 0 / 0"
-counterLabel.TextScaled = true
-counterLabel.BackgroundColor3 = Color3.fromRGB(25, 10, 45)
-counterLabel.BackgroundTransparency = 0.2
-counterLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
-counterLabel.Font = Enum.Font.GothamBold
-counterLabel.Parent = main
+-- ===== СЧЁТЧИК =====
+local counterFrame = Instance.new("Frame")
+counterFrame.Size = UDim2.new(1, -10, 0.06, 0)
+counterFrame.Position = UDim2.new(0, 5, 0.57, 0)
+counterFrame.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
+counterFrame.BackgroundTransparency = 0.2
+counterFrame.BorderSizePixel = 1
+counterFrame.BorderColor3 = Color3.fromRGB(80, 30, 150)
+counterFrame.Parent = main
 
 local counterCorner = Instance.new("UICorner")
 counterCorner.CornerRadius = UDim.new(0, 10)
-counterCorner.Parent = counterLabel
+counterCorner.Parent = counterFrame
 
--- Кнопка выполнить
+local counterLabel = Instance.new("TextLabel")
+counterLabel.Size = UDim2.new(1, 0, 1, 0)
+counterLabel.Text = "⚡ ВЫПОЛНЕНО: 0 / 0"
+counterLabel.TextScaled = true
+counterLabel.BackgroundTransparency = 1
+counterLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
+counterLabel.Font = Enum.Font.GothamBold
+counterLabel.Parent = counterFrame
+
+-- ===== КНОПКИ =====
 local exec = Instance.new("TextButton")
 exec.Size = UDim2.new(0.45, 0, 0.09, 0)
-exec.Position = UDim2.new(0.03, 0, 0.68, 0)
+exec.Position = UDim2.new(0.03, 0, 0.65, 0)
 exec.Text = "▶ ВЫПОЛНИТЬ"
 exec.TextScaled = true
 exec.BackgroundColor3 = Color3.fromRGB(80, 20, 160)
@@ -149,10 +224,9 @@ local execCorner = Instance.new("UICorner")
 execCorner.CornerRadius = UDim.new(0, 14)
 execCorner.Parent = exec
 
--- Кнопка отмена
 local cancel = Instance.new("TextButton")
 cancel.Size = UDim2.new(0.45, 0, 0.09, 0)
-cancel.Position = UDim2.new(0.52, 0, 0.68, 0)
+cancel.Position = UDim2.new(0.52, 0, 0.65, 0)
 cancel.Text = "✖ ОТМЕНА"
 cancel.TextScaled = true
 cancel.BackgroundColor3 = Color3.fromRGB(100, 20, 40)
@@ -166,10 +240,9 @@ local cancelCorner = Instance.new("UICorner")
 cancelCorner.CornerRadius = UDim.new(0, 14)
 cancelCorner.Parent = cancel
 
--- Кнопка обновить
 local refresh = Instance.new("TextButton")
 refresh.Size = UDim2.new(0.40, 0, 0.07, 0)
-refresh.Position = UDim2.new(0.30, 0, 0.79, 0)
+refresh.Position = UDim2.new(0.30, 0, 0.76, 0)
 refresh.Text = "🔄 ОБНОВИТЬ"
 refresh.TextScaled = true
 refresh.BackgroundColor3 = Color3.fromRGB(40, 15, 90)
@@ -202,7 +275,21 @@ openCorner.Parent = open
 
 open.MouseButton1Click:Connect(function()
     main.Visible = true
+    updateBalance()
 end)
+
+-- ===== ФУНКЦИЯ ОБНОВЛЕНИЯ БАЛАНСА =====
+local function updateBalance()
+    local balance = tonumber(balanceInput.Text) or 0
+    local count = tonumber(inputBox.Text) or 0
+    local remain = balance - (count * 5000)
+    if remain < 0 then remain = 0 end
+    remainLabel.Text = "📉 ОСТАНЕТСЯ: $" .. remain
+end
+
+-- Обновление при изменении любого поля
+balanceInput:GetPropertyChangedSignal("Text"):Connect(updateBalance)
+inputBox:GetPropertyChangedSignal("Text"):Connect(updateBalance)
 
 -- ===== ФУНКЦИЯ ОБНОВЛЕНИЯ СПИСКА =====
 local function refreshList()
@@ -283,6 +370,7 @@ player.CharacterAdded:Connect(function(c)
     hum.Died:Connect(function()
         waitTime(0.3)
         player:LoadCharacter()
+        updateBalance()
     end)
 end)
 
@@ -295,11 +383,12 @@ end)
 
 refresh.MouseButton1Click:Connect(function()
     refreshList()
+    updateBalance()
     counterLabel.Text = "🔄 ОБНОВЛЕНО"
     counterLabel.TextColor3 = Color3.fromRGB(200, 150, 255)
     waitTime(0.7)
     if not isRunning then
-        counterLabel.Text = "ВЫПОЛНЕНО: 0 / 0"
+        counterLabel.Text = "⚡ ВЫПОЛНЕНО: 0 / 0"
         counterLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
     end
 end)
@@ -312,6 +401,9 @@ exec.MouseButton1Click:Connect(function()
     if count < 1 then count = 1 end
     if count > 100 then count = 100 end
     inputBox.Text = tostring(count)
+    
+    -- Обновляем баланс перед стартом
+    updateBalance()
     
     stopFlag = false
     isRunning = true
@@ -337,6 +429,13 @@ exec.MouseButton1Click:Connect(function()
         done = done + 1
         counterLabel.Text = "⚡ ВЫПОЛНЕНО: " .. done .. " / " .. count
         
+        -- Обновляем остаток после каждого ресета
+        local remaining = count - done
+        local balance = tonumber(balanceInput.Text) or 0
+        local remain = balance - (remaining * 5000)
+        if remain < 0 then remain = 0 end
+        remainLabel.Text = "📉 ОСТАНЕТСЯ: $" .. remain
+        
         waitTime(5.0)
         
         if selectedPlayer then
@@ -359,6 +458,7 @@ exec.MouseButton1Click:Connect(function()
     if not stopFlag then
         counterLabel.Text = "✅ ГОТОВО! " .. done .. "/" .. count
         counterLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+        updateBalance()
     end
     
     isRunning = false
@@ -366,4 +466,5 @@ exec.MouseButton1Click:Connect(function()
     exec.Text = "▶ ВЫПОЛНИТЬ"
 end)
 
-print("🚀 ROCKET V7 Xeno/Delta загружен. КД 5 сек.")
+updateBalance()
+print("🚀 ROCKET V7 + Manual Balance загружен. КД 5 сек.")
