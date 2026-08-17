@@ -1,4 +1,4 @@
- -- V7 Xeno/Delta + Ручной баланс
+-- V7 Xeno/Delta + Ручной баланс
 -- Вы сами вводите текущий баланс, скрипт считает остаток
 -- ROCKET версия 7.0 (Manual Balance)
 
@@ -7,7 +7,7 @@ local gui = Instance.new("ScreenGui")
 gui.Parent = player.PlayerGui
 gui.ResetOnSpawn = false
 
--- ===== УНИВЕРСАЛЬНЫЙ WAIT =====
+-- ===== ЗАМЕНА task.wait НА wait ДЛЯ XENO =====
 local function waitTime(t)
     if task and task.wait then
         return task.wait(t)
@@ -16,17 +16,17 @@ local function waitTime(t)
     end
 end
 
-waitTime(0.3)
+waitTime(0.5)
 
 -- ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 local selectedPlayer = nil
 local stopFlag = false
 local isRunning = false
 
--- ===== ОСНОВНАЯ ПАНЕЛЬ =====
+-- ===== GUI =====
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0.85, 0, 0.82, 0)
-main.Position = UDim2.new(0.075, 0, 0.09, 0)
+main.Size = UDim2.new(0.85, 0, 0.85, 0)
+main.Position = UDim2.new(0.075, 0, 0.075, 0)
 main.BackgroundColor3 = Color3.fromRGB(18, 8, 28)
 main.BackgroundTransparency = 0.05
 main.BorderSizePixel = 2
@@ -35,11 +35,11 @@ main.ClipsDescendants = true
 main.Parent = gui
 main.Visible = false
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 20)
-mainCorner.Parent = main
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 20)
+corner.Parent = main
 
--- ===== ЗАГОЛОВОК =====
+-- Заголовок
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0.08, 0)
 title.Text = "⚡ ROCKET · РЕСЕТЫ ⚡"
@@ -54,10 +54,10 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 20)
 titleCorner.Parent = title
 
--- ===== КНОПКА ЗАКРЫТИЯ =====
+-- Кнопка закрытия
 local close = Instance.new("TextButton")
-close.Size = UDim2.new(0.07, 0, 0.75, 0)
-close.Position = UDim2.new(0.92, 0, 0.125, 0)
+close.Size = UDim2.new(0.08, 0, 0.75, 0)
+close.Position = UDim2.new(0.91, 0, 0.125, 0)
 close.Text = "✕"
 close.TextScaled = true
 close.BackgroundColor3 = Color3.fromRGB(80, 10, 30)
@@ -70,11 +70,11 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 12)
 closeCorner.Parent = close
 
-close.MouseButton1Click = function()
+close.MouseButton1Click:Connect(function()
     main.Visible = false
-end
+end)
 
--- ===== БЛОК БАЛАНСА =====
+-- ===== БЛОК БАЛАНСА (НОВЫЙ) =====
 local balanceFrame = Instance.new("Frame")
 balanceFrame.Size = UDim2.new(1, -10, 0.07, 0)
 balanceFrame.Position = UDim2.new(0, 5, 0.09, 0)
@@ -88,6 +88,7 @@ local balanceCorner = Instance.new("UICorner")
 balanceCorner.CornerRadius = UDim.new(0, 12)
 balanceCorner.Parent = balanceFrame
 
+-- Поле для ввода текущего баланса
 local balanceLabel = Instance.new("TextLabel")
 balanceLabel.Size = UDim2.new(0.3, 0, 1, 0)
 balanceLabel.Position = UDim2.new(0.02, 0, 0, 0)
@@ -111,10 +112,11 @@ balanceInput.ClearTextOnFocus = false
 balanceInput.Font = Enum.Font.GothamBold
 balanceInput.Parent = balanceFrame
 
-local balanceInputCorner = Instance.new("UICorner")
-balanceInputCorner.CornerRadius = UDim.new(0, 8)
-balanceInputCorner.Parent = balanceInput
+local balanceCorner2 = Instance.new("UICorner")
+balanceCorner2.CornerRadius = UDim.new(0, 8)
+balanceCorner2.Parent = balanceInput
 
+-- Поле для отображения остатка (только для чтения)
 local remainLabel = Instance.new("TextLabel")
 remainLabel.Size = UDim2.new(0.35, 0, 1, 0)
 remainLabel.Position = UDim2.new(0.62, 0, 0, 0)
@@ -126,28 +128,22 @@ remainLabel.Font = Enum.Font.GothamBold
 remainLabel.Parent = balanceFrame
 
 -- ===== СПИСОК ИГРОКОВ =====
-local listBg = Instance.new("Frame")
-listBg.Size = UDim2.new(1, -10, 0.30, 0)
-listBg.Position = UDim2.new(0, 5, 0.17, 0)
-listBg.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
-listBg.BackgroundTransparency = 0.2
-listBg.BorderSizePixel = 2
-listBg.BorderColor3 = Color3.fromRGB(100, 40, 180)
-listBg.Parent = main
+local list = Instance.new("ScrollingFrame")
+list.Size = UDim2.new(1, -10, 0.30, 0)
+list.Position = UDim2.new(0, 5, 0.17, 0)
+list.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
+list.BackgroundTransparency = 0.2
+list.BorderSizePixel = 1
+list.BorderColor3 = Color3.fromRGB(100, 40, 180)
+list.CanvasSize = UDim2.new(0, 0, 0, 0)
+list.ScrollBarThickness = 6
+list.Parent = main
 
 local listCorner = Instance.new("UICorner")
 listCorner.CornerRadius = UDim.new(0, 12)
-listCorner.Parent = listBg
+listCorner.Parent = list
 
-local list = Instance.new("ScrollingFrame")
-list.Size = UDim2.new(1, -10, 1, -10)
-list.Position = UDim2.new(0, 5, 0, 5)
-list.BackgroundTransparency = 1
-list.CanvasSize = UDim2.new(0, 0, 0, 0)
-list.ScrollBarThickness = 6
-list.Parent = listBg
-
--- ===== ПОЛЕ ВВОДА =====
+-- ===== ПОЛЕ ВВОДА КОЛИЧЕСТВА РЕСЕТОВ =====
 local inputFrame = Instance.new("Frame")
 inputFrame.Size = UDim2.new(1, -10, 0.07, 0)
 inputFrame.Position = UDim2.new(0, 5, 0.49, 0)
@@ -212,15 +208,9 @@ counterLabel.Font = Enum.Font.GothamBold
 counterLabel.Parent = counterFrame
 
 -- ===== КНОПКИ =====
-local btnFrame = Instance.new("Frame")
-btnFrame.Size = UDim2.new(1, -10, 0.09, 0)
-btnFrame.Position = UDim2.new(0, 5, 0.65, 0)
-btnFrame.BackgroundTransparency = 1
-btnFrame.Parent = main
-
 local exec = Instance.new("TextButton")
-exec.Size = UDim2.new(0.45, 0, 1, 0)
-exec.Position = UDim2.new(0, 0, 0, 0)
+exec.Size = UDim2.new(0.45, 0, 0.09, 0)
+exec.Position = UDim2.new(0.03, 0, 0.65, 0)
 exec.Text = "▶ ВЫПОЛНИТЬ"
 exec.TextScaled = true
 exec.BackgroundColor3 = Color3.fromRGB(80, 20, 160)
@@ -228,15 +218,15 @@ exec.TextColor3 = Color3.fromRGB(220, 180, 255)
 exec.Font = Enum.Font.GothamBold
 exec.BorderSizePixel = 2
 exec.BorderColor3 = Color3.fromRGB(150, 60, 220)
-exec.Parent = btnFrame
+exec.Parent = main
 
 local execCorner = Instance.new("UICorner")
 execCorner.CornerRadius = UDim.new(0, 14)
 execCorner.Parent = exec
 
 local cancel = Instance.new("TextButton")
-cancel.Size = UDim2.new(0.45, 0, 1, 0)
-cancel.Position = UDim2.new(0.55, 0, 0, 0)
+cancel.Size = UDim2.new(0.45, 0, 0.09, 0)
+cancel.Position = UDim2.new(0.52, 0, 0.65, 0)
 cancel.Text = "✖ ОТМЕНА"
 cancel.TextScaled = true
 cancel.BackgroundColor3 = Color3.fromRGB(100, 20, 40)
@@ -244,15 +234,15 @@ cancel.TextColor3 = Color3.fromRGB(255, 150, 150)
 cancel.Font = Enum.Font.GothamBold
 cancel.BorderSizePixel = 2
 cancel.BorderColor3 = Color3.fromRGB(180, 50, 80)
-cancel.Parent = btnFrame
+cancel.Parent = main
 
 local cancelCorner = Instance.new("UICorner")
 cancelCorner.CornerRadius = UDim.new(0, 14)
 cancelCorner.Parent = cancel
 
 local refresh = Instance.new("TextButton")
-refresh.Size = UDim2.new(0.4, 0, 0.065, 0)
-refresh.Position = UDim2.new(0.3, 0, 0.76, 0)
+refresh.Size = UDim2.new(0.40, 0, 0.07, 0)
+refresh.Position = UDim2.new(0.30, 0, 0.76, 0)
 refresh.Text = "🔄 ОБНОВИТЬ"
 refresh.TextScaled = true
 refresh.BackgroundColor3 = Color3.fromRGB(40, 15, 90)
@@ -266,9 +256,9 @@ local refreshCorner = Instance.new("UICorner")
 refreshCorner.CornerRadius = UDim.new(0, 12)
 refreshCorner.Parent = refresh
 
--- ===== КНОПКА ОТКРЫТИЯ =====
+-- Кнопка открытия
 local open = Instance.new("TextButton")
-open.Size = UDim2.new(0.14, 0, 0.065, 0)
+open.Size = UDim2.new(0.15, 0, 0.07, 0)
 open.Position = UDim2.new(0.01, 0, 0.01, 0)
 open.Text = "🚀 ROCKET"
 open.TextScaled = true
@@ -283,10 +273,10 @@ local openCorner = Instance.new("UICorner")
 openCorner.CornerRadius = UDim.new(0, 14)
 openCorner.Parent = open
 
-open.MouseButton1Click = function()
+open.MouseButton1Click:Connect(function()
     main.Visible = true
     updateBalance()
-end
+end)
 
 -- ===== ФУНКЦИЯ ОБНОВЛЕНИЯ БАЛАНСА =====
 local function updateBalance()
@@ -297,6 +287,7 @@ local function updateBalance()
     remainLabel.Text = "📉 ОСТАНЕТСЯ: $" .. remain
 end
 
+-- Обновление при изменении любого поля
 balanceInput:GetPropertyChangedSignal("Text"):Connect(updateBalance)
 inputBox:GetPropertyChangedSignal("Text"):Connect(updateBalance)
 
@@ -328,7 +319,7 @@ local function refreshList()
             bCorner.CornerRadius = UDim.new(0, 10)
             bCorner.Parent = b
             
-            b.MouseButton1Click = function()
+            b.MouseButton1Click:Connect(function()
                 selectedPlayer = p
                 for _, c in ipairs(list:GetChildren()) do
                     if c:IsA("TextButton") then
@@ -338,7 +329,7 @@ local function refreshList()
                 end
                 b.BackgroundColor3 = Color3.fromRGB(60, 20, 120)
                 b.BorderColor3 = Color3.fromRGB(180, 80, 255)
-            end
+            end)
             
             y = y + 55
         end
@@ -384,13 +375,13 @@ player.CharacterAdded:Connect(function(c)
 end)
 
 -- ===== ОБРАБОТЧИКИ =====
-cancel.MouseButton1Click = function()
+cancel.MouseButton1Click:Connect(function()
     stopFlag = true
     counterLabel.Text = "⛔ ОСТАНОВЛЕНО!"
     counterLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-end
+end)
 
-refresh.MouseButton1Click = function()
+refresh.MouseButton1Click:Connect(function()
     refreshList()
     updateBalance()
     counterLabel.Text = "🔄 ОБНОВЛЕНО"
@@ -400,10 +391,10 @@ refresh.MouseButton1Click = function()
         counterLabel.Text = "⚡ ВЫПОЛНЕНО: 0 / 0"
         counterLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
     end
-end
+end)
 
 -- ===== ОСНОВНАЯ ЛОГИКА =====
-exec.MouseButton1Click = function()
+exec.MouseButton1Click:Connect(function()
     if isRunning then return end
     
     local count = tonumber(inputBox.Text) or 1
@@ -411,6 +402,7 @@ exec.MouseButton1Click = function()
     if count > 100 then count = 100 end
     inputBox.Text = tostring(count)
     
+    -- Обновляем баланс перед стартом
     updateBalance()
     
     stopFlag = false
@@ -437,6 +429,7 @@ exec.MouseButton1Click = function()
         done = done + 1
         counterLabel.Text = "⚡ ВЫПОЛНЕНО: " .. done .. " / " .. count
         
+        -- Обновляем остаток после каждого ресета
         local remaining = count - done
         local balance = tonumber(balanceInput.Text) or 0
         local remain = balance - (remaining * 5000)
@@ -471,7 +464,7 @@ exec.MouseButton1Click = function()
     isRunning = false
     exec.BackgroundColor3 = Color3.fromRGB(80, 20, 160)
     exec.Text = "▶ ВЫПОЛНИТЬ"
-end
+end)
 
 updateBalance()
 print("🚀 ROCKET V7 + Manual Balance загружен. КД 5 сек.")
