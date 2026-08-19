@@ -1,470 +1,255 @@
--- V7 Xeno/Delta + Ручной баланс
--- Вы сами вводите текущий баланс, скрипт считает остаток
--- ROCKET версия 7.0 (Manual Balance)
-
+-- ROCKET • V11.6 (Рабочая версия)
 local player = game.Players.LocalPlayer
-local gui = Instance.new("ScreenGui")
-gui.Parent = player.PlayerGui
-gui.ResetOnSpawn = false
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 
--- ===== ЗАМЕНА task.wait НА wait ДЛЯ XENO =====
-local function waitTime(t)
-    if task and task.wait then
-        return task.wait(t)
-    else
-        return wait(t)
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name, gui.ResetOnSpawn = "ROCKET_Pro", false
+
+local C = { Loss = 5000, Delay = 5.0, MaxResets = 100, Scale = 1.0 }
+local State = { isRunning = false, stop = false, target = nil, totalDone = 0 }
+
+-- Объявляем переменные UI заранее для доступа из функций
+local inBal, inRes, lblRemain, lblCounter, status
+
+local function create(class, props, children)
+    local inst = Instance.new(class)
+    for k, v in pairs(props or {}) do inst[k] = v end
+    for _, child in ipairs(children or {}) do child.Parent = inst end
+    return inst
+end
+
+-- ===== СОХРАНЕНИЕ И ЗАГРУЗКА =====
+local function saveData()
+    if not isfolder or not makefolder or not writefile then return end
+    pcall(function()
+        if not isfolder("ROCKET") then makefolder("ROCKET") end
+        local data = {
+            balance = tonumber(inBal and inBal.Text or 0),
+            totalDone = State.totalDone or 0,
+            scale = C.Scale,
+        }
+        writefile("ROCKET/ROCKET_Pro_Save.json", HttpService:JSONEncode(data))
+    end)
+end
+
+local function loadData()
+    if not isfolder or not isfile then return nil end
+    if not isfile("ROCKET/ROCKET_Pro_Save.json") then return nil end
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(readfile("ROCKET/ROCKET_Pro_Save.json"))
+    end)
+    if ok and data then
+        if data.totalDone then State.totalDone = data.totalDone end
+        if data.scale then C.Scale = data.scale end
+        return data.balance
     end
+    return nil
 end
 
-waitTime(0.5)
+-- ===== UI =====
+local main = create("Frame", {
+    Size = UDim2.new(0, 380, 0, 420), Position = UDim2.new(0.5, -190, 0.5, -210),
+    BackgroundColor3 = Color3.fromRGB(18, 15, 28), BorderSizePixel = 0, Active = true, Parent = gui, Visible = false,
+}, {
+    create("UICorner", { CornerRadius = UDim.new(0, 14) }),
+    create("UIStroke", { Color = Color3.fromRGB(120, 80, 220), Thickness = 1.5 })
+})
 
--- ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-local selectedPlayer = nil
-local stopFlag = false
-local isRunning = false
+local uiScale = Instance.new("UIScale", main)
 
--- ===== GUI =====
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0.85, 0, 0.85, 0)
-main.Position = UDim2.new(0.075, 0, 0.075, 0)
-main.BackgroundColor3 = Color3.fromRGB(18, 8, 28)
-main.BackgroundTransparency = 0.05
-main.BorderSizePixel = 2
-main.BorderColor3 = Color3.fromRGB(120, 50, 200)
-main.ClipsDescendants = true
-main.Parent = gui
-main.Visible = false
+local openBtn = create("TextButton", {
+    Size = UDim2.new(0, 42, 0, 42), Position = UDim2.new(0, 12, 0.5, -21),
+    BackgroundColor3 = Color3.fromRGB(18, 15, 28), Text = "🚀", TextSize = 20, Active = true, Parent = gui
+}, { create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+openBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 20)
-corner.Parent = main
-
--- Заголовок
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0.08, 0)
-title.Text = "⚡ ROCKET · РЕСЕТЫ ⚡"
-title.TextColor3 = Color3.fromRGB(200, 100, 255)
-title.TextScaled = true
-title.BackgroundColor3 = Color3.fromRGB(40, 15, 70)
-title.BackgroundTransparency = 0.3
-title.Font = Enum.Font.GothamBold
-title.Parent = main
-
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 20)
-titleCorner.Parent = title
-
--- Кнопка закрытия
-local close = Instance.new("TextButton")
-close.Size = UDim2.new(0.08, 0, 0.75, 0)
-close.Position = UDim2.new(0.91, 0, 0.125, 0)
-close.Text = "✕"
-close.TextScaled = true
-close.BackgroundColor3 = Color3.fromRGB(80, 10, 30)
-close.TextColor3 = Color3.fromRGB(255, 100, 100)
-close.Font = Enum.Font.GothamBold
-close.BorderSizePixel = 0
-close.Parent = title
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 12)
-closeCorner.Parent = close
-
-close.MouseButton1Click:Connect(function()
-    main.Visible = false
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+        main.Visible = not main.Visible
+    end
 end)
 
--- ===== БЛОК БАЛАНСА (НОВЫЙ) =====
-local balanceFrame = Instance.new("Frame")
-balanceFrame.Size = UDim2.new(1, -10, 0.07, 0)
-balanceFrame.Position = UDim2.new(0, 5, 0.09, 0)
-balanceFrame.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
-balanceFrame.BackgroundTransparency = 0.2
-balanceFrame.BorderSizePixel = 2
-balanceFrame.BorderColor3 = Color3.fromRGB(100, 40, 180)
-balanceFrame.Parent = main
-
-local balanceCorner = Instance.new("UICorner")
-balanceCorner.CornerRadius = UDim.new(0, 12)
-balanceCorner.Parent = balanceFrame
-
--- Поле для ввода текущего баланса
-local balanceLabel = Instance.new("TextLabel")
-balanceLabel.Size = UDim2.new(0.3, 0, 1, 0)
-balanceLabel.Position = UDim2.new(0.02, 0, 0, 0)
-balanceLabel.Text = "💰 БАЛАНС:"
-balanceLabel.TextScaled = true
-balanceLabel.BackgroundTransparency = 1
-balanceLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
-balanceLabel.Font = Enum.Font.GothamBold
-balanceLabel.Parent = balanceFrame
-
-local balanceInput = Instance.new("TextBox")
-balanceInput.Size = UDim2.new(0.25, 0, 0.85, 0)
-balanceInput.Position = UDim2.new(0.32, 0, 0.075, 0)
-balanceInput.Text = "10000"
-balanceInput.TextScaled = true
-balanceInput.BackgroundColor3 = Color3.fromRGB(10, 5, 20)
-balanceInput.TextColor3 = Color3.fromRGB(220, 180, 255)
-balanceInput.BorderSizePixel = 2
-balanceInput.BorderColor3 = Color3.fromRGB(100, 40, 180)
-balanceInput.ClearTextOnFocus = false
-balanceInput.Font = Enum.Font.GothamBold
-balanceInput.Parent = balanceFrame
-
-local balanceCorner2 = Instance.new("UICorner")
-balanceCorner2.CornerRadius = UDim.new(0, 8)
-balanceCorner2.Parent = balanceInput
-
--- Поле для отображения остатка (только для чтения)
-local remainLabel = Instance.new("TextLabel")
-remainLabel.Size = UDim2.new(0.35, 0, 1, 0)
-remainLabel.Position = UDim2.new(0.62, 0, 0, 0)
-remainLabel.Text = "📉 ОСТАНЕТСЯ: $0"
-remainLabel.TextScaled = true
-remainLabel.BackgroundTransparency = 1
-remainLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-remainLabel.Font = Enum.Font.GothamBold
-remainLabel.Parent = balanceFrame
-
--- ===== СПИСОК ИГРОКОВ =====
-local list = Instance.new("ScrollingFrame")
-list.Size = UDim2.new(1, -10, 0.30, 0)
-list.Position = UDim2.new(0, 5, 0.17, 0)
-list.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
-list.BackgroundTransparency = 0.2
-list.BorderSizePixel = 1
-list.BorderColor3 = Color3.fromRGB(100, 40, 180)
-list.CanvasSize = UDim2.new(0, 0, 0, 0)
-list.ScrollBarThickness = 6
-list.Parent = main
-
-local listCorner = Instance.new("UICorner")
-listCorner.CornerRadius = UDim.new(0, 12)
-listCorner.Parent = list
-
--- ===== ПОЛЕ ВВОДА КОЛИЧЕСТВА РЕСЕТОВ =====
-local inputFrame = Instance.new("Frame")
-inputFrame.Size = UDim2.new(1, -10, 0.07, 0)
-inputFrame.Position = UDim2.new(0, 5, 0.49, 0)
-inputFrame.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
-inputFrame.BackgroundTransparency = 0.2
-inputFrame.BorderSizePixel = 2
-inputFrame.BorderColor3 = Color3.fromRGB(100, 40, 180)
-inputFrame.Parent = main
-
-local inputCorner = Instance.new("UICorner")
-inputCorner.CornerRadius = UDim.new(0, 12)
-inputCorner.Parent = inputFrame
-
-local inputLabel = Instance.new("TextLabel")
-inputLabel.Size = UDim2.new(0.3, 0, 1, 0)
-inputLabel.Position = UDim2.new(0.02, 0, 0, 0)
-inputLabel.Text = "🔢 КОЛ-ВО:"
-inputLabel.TextScaled = true
-inputLabel.BackgroundTransparency = 1
-inputLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
-inputLabel.Font = Enum.Font.GothamBold
-inputLabel.Parent = inputFrame
-
-local inputBox = Instance.new("TextBox")
-inputBox.Size = UDim2.new(0.6, 0, 0.85, 0)
-inputBox.Position = UDim2.new(0.35, 0, 0.075, 0)
-inputBox.Text = "1"
-inputBox.TextScaled = true
-inputBox.BackgroundColor3 = Color3.fromRGB(10, 5, 20)
-inputBox.TextColor3 = Color3.fromRGB(220, 180, 255)
-inputBox.BorderSizePixel = 2
-inputBox.BorderColor3 = Color3.fromRGB(100, 40, 180)
-inputBox.ClearTextOnFocus = false
-inputBox.Font = Enum.Font.GothamBold
-inputBox.Parent = inputFrame
-
-local inputCorner2 = Instance.new("UICorner")
-inputCorner2.CornerRadius = UDim.new(0, 8)
-inputCorner2.Parent = inputBox
-
--- ===== СЧЁТЧИК =====
-local counterFrame = Instance.new("Frame")
-counterFrame.Size = UDim2.new(1, -10, 0.06, 0)
-counterFrame.Position = UDim2.new(0, 5, 0.57, 0)
-counterFrame.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
-counterFrame.BackgroundTransparency = 0.2
-counterFrame.BorderSizePixel = 1
-counterFrame.BorderColor3 = Color3.fromRGB(80, 30, 150)
-counterFrame.Parent = main
-
-local counterCorner = Instance.new("UICorner")
-counterCorner.CornerRadius = UDim.new(0, 10)
-counterCorner.Parent = counterFrame
-
-local counterLabel = Instance.new("TextLabel")
-counterLabel.Size = UDim2.new(1, 0, 1, 0)
-counterLabel.Text = "⚡ ВЫПОЛНЕНО: 0 / 0"
-counterLabel.TextScaled = true
-counterLabel.BackgroundTransparency = 1
-counterLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
-counterLabel.Font = Enum.Font.GothamBold
-counterLabel.Parent = counterFrame
-
--- ===== КНОПКИ =====
-local exec = Instance.new("TextButton")
-exec.Size = UDim2.new(0.45, 0, 0.09, 0)
-exec.Position = UDim2.new(0.03, 0, 0.65, 0)
-exec.Text = "▶ ВЫПОЛНИТЬ"
-exec.TextScaled = true
-exec.BackgroundColor3 = Color3.fromRGB(80, 20, 160)
-exec.TextColor3 = Color3.fromRGB(220, 180, 255)
-exec.Font = Enum.Font.GothamBold
-exec.BorderSizePixel = 2
-exec.BorderColor3 = Color3.fromRGB(150, 60, 220)
-exec.Parent = main
-
-local execCorner = Instance.new("UICorner")
-execCorner.CornerRadius = UDim.new(0, 14)
-execCorner.Parent = exec
-
-local cancel = Instance.new("TextButton")
-cancel.Size = UDim2.new(0.45, 0, 0.09, 0)
-cancel.Position = UDim2.new(0.52, 0, 0.65, 0)
-cancel.Text = "✖ ОТМЕНА"
-cancel.TextScaled = true
-cancel.BackgroundColor3 = Color3.fromRGB(100, 20, 40)
-cancel.TextColor3 = Color3.fromRGB(255, 150, 150)
-cancel.Font = Enum.Font.GothamBold
-cancel.BorderSizePixel = 2
-cancel.BorderColor3 = Color3.fromRGB(180, 50, 80)
-cancel.Parent = main
-
-local cancelCorner = Instance.new("UICorner")
-cancelCorner.CornerRadius = UDim.new(0, 14)
-cancelCorner.Parent = cancel
-
-local refresh = Instance.new("TextButton")
-refresh.Size = UDim2.new(0.40, 0, 0.07, 0)
-refresh.Position = UDim2.new(0.30, 0, 0.76, 0)
-refresh.Text = "🔄 ОБНОВИТЬ"
-refresh.TextScaled = true
-refresh.BackgroundColor3 = Color3.fromRGB(40, 15, 90)
-refresh.TextColor3 = Color3.fromRGB(180, 140, 255)
-refresh.Font = Enum.Font.GothamBold
-refresh.BorderSizePixel = 1
-refresh.BorderColor3 = Color3.fromRGB(100, 40, 180)
-refresh.Parent = main
-
-local refreshCorner = Instance.new("UICorner")
-refreshCorner.CornerRadius = UDim.new(0, 12)
-refreshCorner.Parent = refresh
-
--- Кнопка открытия
-local open = Instance.new("TextButton")
-open.Size = UDim2.new(0.15, 0, 0.07, 0)
-open.Position = UDim2.new(0.01, 0, 0.01, 0)
-open.Text = "🚀 ROCKET"
-open.TextScaled = true
-open.BackgroundColor3 = Color3.fromRGB(40, 10, 80)
-open.TextColor3 = Color3.fromRGB(200, 150, 255)
-open.Font = Enum.Font.GothamBold
-open.BorderSizePixel = 2
-open.BorderColor3 = Color3.fromRGB(120, 50, 200)
-open.Parent = gui
-
-local openCorner = Instance.new("UICorner")
-openCorner.CornerRadius = UDim.new(0, 14)
-openCorner.Parent = open
-
-open.MouseButton1Click:Connect(function()
-    main.Visible = true
-    updateBalance()
+local dragging, dragStart, startPos
+main.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        dragging, dragStart, startPos = true, i.Position, main.Position
+    end
 end)
+UserInputService.InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function() dragging = false end)
 
--- ===== ФУНКЦИЯ ОБНОВЛЕНИЯ БАЛАНСА =====
-local function updateBalance()
-    local balance = tonumber(balanceInput.Text) or 0
-    local count = tonumber(inputBox.Text) or 0
-    local remain = balance - (count * 5000)
-    if remain < 0 then remain = 0 end
-    remainLabel.Text = "📉 ОСТАНЕТСЯ: $" .. remain
+local header = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = main })
+create("TextLabel", {
+    Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 14, 0, 0),
+    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V11.6",
+    TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = 0, Parent = header
+})
+
+local function makeInput(y, labelText, defaultVal, textColor)
+    create("TextLabel", {
+        Size = UDim2.new(0.3, 0, 0, 28), Position = UDim2.new(0.05, 0, 0, y),
+        BackgroundTransparency = 1, Text = labelText, TextColor3 = Color3.fromRGB(180, 180, 210),
+        Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = 0, Parent = main
+    })
+    return create("TextBox", {
+        Size = UDim2.new(0.6, 0, 0, 28), Position = UDim2.new(0.35, 0, 0, y),
+        BackgroundColor3 = Color3.fromRGB(26, 22, 42), Text = defaultVal,
+        TextColor3 = textColor, Font = Enum.Font.GothamBold, TextSize = 13, Parent = main
+    }, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
 end
 
--- Обновление при изменении любого поля
-balanceInput:GetPropertyChangedSignal("Text"):Connect(updateBalance)
-inputBox:GetPropertyChangedSignal("Text"):Connect(updateBalance)
+inBal = makeInput(46, "Баланс ($):", "100000", Color3.fromRGB(0, 255, 170))
+inRes = makeInput(78, "Кол-во ресетов:", "5", Color3.fromRGB(255, 215, 0))
 
--- ===== ФУНКЦИЯ ОБНОВЛЕНИЯ СПИСКА =====
+lblRemain = create("TextLabel", {
+    Size = UDim2.new(0.6, 0, 0, 28), Position = UDim2.new(0.05, 0, 0, 112),
+    BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "💵 ОСТАТОК: 0 $",
+    TextColor3 = Color3.fromRGB(0, 240, 255), Font = Enum.Font.GothamBold, TextSize = 11, Parent = main
+}, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
+
+local function calculate()
+    local bal = tonumber(inBal.Text) or 0
+    local resets = tonumber(inRes.Text) or 0
+    lblRemain.Text = "💵 ОСТАТОК: " .. math.max(bal - (resets * C.Loss), 0) .. " $"
+end
+inBal:GetPropertyChangedSignal("Text"):Connect(calculate)
+inRes:GetPropertyChangedSignal("Text"):Connect(calculate)
+
+local list = create("ScrollingFrame", {
+    Size = UDim2.new(0.9, 0, 0, 110), Position = UDim2.new(0.05, 0, 0, 148),
+    BackgroundColor3 = Color3.fromRGB(12, 10, 20), CanvasSize = UDim2.new(0,0,0,0), ScrollBarThickness = 3, Parent = main
+}, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
+
 local function refreshList()
-    for _, c in ipairs(list:GetChildren()) do
-        if c:IsA("TextButton") then
-            c:Destroy()
-        end
-    end
-    
-    local y = 5
-    for _, p in ipairs(game.Players:GetPlayers()) do
+    for _, v in pairs(list:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    local y = 4
+    for _, p in pairs(game.Players:GetPlayers()) do
         if p ~= player then
-            local b = Instance.new("TextButton")
-            b.Size = UDim2.new(1, -10, 0, 50)
-            b.Position = UDim2.new(0, 5, 0, y)
-            b.Text = "👤 " .. p.Name
-            b.TextScaled = true
-            b.BackgroundColor3 = Color3.fromRGB(40, 15, 70)
-            b.BackgroundTransparency = 0.3
-            b.TextColor3 = Color3.fromRGB(200, 150, 255)
-            b.Font = Enum.Font.GothamBold
-            b.BorderSizePixel = 2
-            b.BorderColor3 = Color3.fromRGB(80, 30, 150)
-            b.Parent = list
-            
-            local bCorner = Instance.new("UICorner")
-            bCorner.CornerRadius = UDim.new(0, 10)
-            bCorner.Parent = b
-            
-            b.MouseButton1Click:Connect(function()
-                selectedPlayer = p
-                for _, c in ipairs(list:GetChildren()) do
-                    if c:IsA("TextButton") then
-                        c.BackgroundColor3 = Color3.fromRGB(40, 15, 70)
-                        c.BorderColor3 = Color3.fromRGB(80, 30, 150)
-                    end
-                end
-                b.BackgroundColor3 = Color3.fromRGB(60, 20, 120)
-                b.BorderColor3 = Color3.fromRGB(180, 80, 255)
-            end)
-            
-            y = y + 55
+            local isSel = (State.target == p)
+            local btn = create("TextButton", {
+                Size = UDim2.new(1, -8, 0, 22), Position = UDim2.new(0, 4, 0, y),
+                BackgroundColor3 = isSel and Color3.fromRGB(80, 40, 140) or Color3.fromRGB(22, 18, 36),
+                Text = (isSel and "🎯 " or "👤 ") .. p.Name,
+                TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 220),
+                Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = 0, Parent = list
+            }, { create("UICorner", { CornerRadius = UDim.new(0, 4) }) })
+            btn.MouseButton1Click:Connect(function() State.target = p; refreshList() end)
+            y = y + 25
         end
     end
+    list.CanvasSize = UDim2.new(0, 0, 0, y)
+end
+
+local function makeBtn(x, w, text, bgColor)
+    return create("TextButton", {
+        Size = UDim2.new(w, 0, 0, 30), Position = UDim2.new(x, 0, 0, 268),
+        BackgroundColor3 = bgColor, Text = text, TextColor3 = Color3.fromRGB(255,255,255),
+        Font = Enum.Font.GothamBold, TextSize = 11, Parent = main
+    }, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
+end
+
+local btnRun = makeBtn(0.05, 0.28, "▶ СТАРТ", Color3.fromRGB(0, 180, 120))
+local btnStop = makeBtn(0.36, 0.28, "✖ СТОП", Color3.fromRGB(200, 40, 70))
+local btnRef = makeBtn(0.67, 0.28, "🔄 ОБН.", Color3.fromRGB(70, 50, 120))
+
+lblCounter = create("TextLabel", {
+    Size = UDim2.new(0.9, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, 306),
+    BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "📊 ВСЕГО: 0",
+    TextColor3 = Color3.fromRGB(200, 200, 250), Font = Enum.Font.GothamMedium, TextSize = 11, Parent = main
+}, { create("UICorner", { CornerRadius = UDim.new(0, 5) }) })
+
+status = create("TextLabel", {
+    Size = UDim2.new(0.9, 0, 0, 24), Position = UDim2.new(0.05, 0, 0, 334),
+    BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "ГОТОВ",
+    TextColor3 = Color3.fromRGB(120, 255, 160), Font = Enum.Font.GothamMedium, TextSize = 11, Parent = main
+}, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
+
+-- ===== ИСПРАВЛЕННЫЙ СБРОС И ЛОГИКА =====
+local function killCharacter(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum:ChangeState(Enum.HumanoidStateType.Dead)
+    end
+    char:BreakJoints()
+end
+
+local function getValidTarget()
+    if State.target and State.target.Character and State.target.Character:FindFirstChild("HumanoidRootPart") then
+        return State.target
+    end
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            return p
+        end
+    end
+end
+
+btnRun.MouseButton1Click:Connect(function()
+    if State.isRunning then return end
+    calculate()
+    local bal = tonumber(inBal.Text) or 0
+    local resets = math.min(tonumber(inRes.Text) or 1, C.MaxResets)
     
-    list.CanvasSize = UDim2.new(0, 0, 0, y + 10)
-end
+    State.isRunning, State.stop = true, false
+    btnRun.Text = "⏳ ..."
 
-refreshList()
+    task.spawn(function()
+        for i = 1, resets do
+            if State.stop then break end
+            
+            local success, err = pcall(function()
+                local target = getValidTarget()
+                if not target then error("НЕТ ЦЕЛЕЙ") end
+                
+                local myChar = player.Character
+                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                local targetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+                
+                if not myRoot or not targetRoot then error("НЕТ СПАВНА") end
+                
+                myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 2, 1.5)
+                task.wait(0.15)
+                
+                killCharacter(myChar)
+                player.CharacterAdded:Wait()
+                
+                bal = math.max(bal - C.Loss, 0)
+                State.totalDone = State.totalDone + 1
+                
+                inBal.Text = tostring(bal)
+                lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
+                status.Text = "⚡ " .. i .. "/" .. resets .. " | " .. target.Name
+                saveData()
+            end)
 
--- ===== ИГРОВЫЕ ФУНКЦИИ =====
-local function resetChar()
-    local c = player.Character
-    if not c then return end
-    local h = c:FindFirstChild("Humanoid")
-    if h and h.Health > 0 then
-        h.Health = 0
-    else
-        c:BreakJoints()
-    end
-end
-
-local function teleport(target)
-    if not target then return end
-    local tc = target.Character
-    local mc = player.Character
-    if not tc or not mc then return end
-    local tr = tc:FindFirstChild("HumanoidRootPart")
-    local mr = mc:FindFirstChild("HumanoidRootPart")
-    if tr and mr then
-        mr.CFrame = tr.CFrame * CFrame.new(0, 2, 1)
-    end
-end
-
--- ===== АВТО-РЕСЕТ =====
-player.CharacterAdded:Connect(function(c)
-    local hum = c:WaitForChild("Humanoid")
-    hum.Died:Connect(function()
-        waitTime(0.3)
-        player:LoadCharacter()
-        updateBalance()
+            if not success then
+                status.Text = "⚠️ " .. tostring(err)
+            end
+            
+            task.wait(C.Delay)
+        end
+        
+        State.isRunning = false
+        btnRun.Text = "▶ СТАРТ"
+        status.Text = State.stop and "⛔ ОСТАНОВЛЕНО" or "✅ ГОТОВО"
+        saveData()
     end)
 end)
 
--- ===== ОБРАБОТЧИКИ =====
-cancel.MouseButton1Click:Connect(function()
-    stopFlag = true
-    counterLabel.Text = "⛔ ОСТАНОВЛЕНО!"
-    counterLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-end)
+btnStop.MouseButton1Click:Connect(function() State.stop = true end)
+btnRef.MouseButton1Click:Connect(refreshList)
 
-refresh.MouseButton1Click:Connect(function()
-    refreshList()
-    updateBalance()
-    counterLabel.Text = "🔄 ОБНОВЛЕНО"
-    counterLabel.TextColor3 = Color3.fromRGB(200, 150, 255)
-    waitTime(0.7)
-    if not isRunning then
-        counterLabel.Text = "⚡ ВЫПОЛНЕНО: 0 / 0"
-        counterLabel.TextColor3 = Color3.fromRGB(150, 100, 255)
-    end
-end)
-
--- ===== ОСНОВНАЯ ЛОГИКА =====
-exec.MouseButton1Click:Connect(function()
-    if isRunning then return end
-    
-    local count = tonumber(inputBox.Text) or 1
-    if count < 1 then count = 1 end
-    if count > 100 then count = 100 end
-    inputBox.Text = tostring(count)
-    
-    -- Обновляем баланс перед стартом
-    updateBalance()
-    
-    stopFlag = false
-    isRunning = true
-    exec.BackgroundColor3 = Color3.fromRGB(60, 10, 120)
-    exec.Text = "⏳ ВЫПОЛНЯЕТСЯ..."
-    counterLabel.TextColor3 = Color3.fromRGB(200, 150, 255)
-    
-    local done = 0
-    
-    for i = 1, count do
-        if stopFlag then
-            counterLabel.Text = "⛔ ОСТАНОВЛЕНО: " .. done .. "/" .. count
-            counterLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-            break
-        end
-        
-        if selectedPlayer then
-            teleport(selectedPlayer)
-            waitTime(0.3)
-        end
-        
-        resetChar()
-        done = done + 1
-        counterLabel.Text = "⚡ ВЫПОЛНЕНО: " .. done .. " / " .. count
-        
-        -- Обновляем остаток после каждого ресета
-        local remaining = count - done
-        local balance = tonumber(balanceInput.Text) or 0
-        local remain = balance - (remaining * 5000)
-        if remain < 0 then remain = 0 end
-        remainLabel.Text = "📉 ОСТАНЕТСЯ: $" .. remain
-        
-        waitTime(5.0)
-        
-        if selectedPlayer then
-            local nc = player.Character
-            if nc then
-                local nr = nc:FindFirstChild("HumanoidRootPart")
-                local tc = selectedPlayer.Character
-                if tc then
-                    local tr = tc:FindFirstChild("HumanoidRootPart")
-                    if nr and tr then
-                        nr.CFrame = tr.CFrame * CFrame.new(0, 2, 1)
-                    end
-                end
-            end
-        end
-        
-        waitTime(0.3)
-    end
-    
-    if not stopFlag then
-        counterLabel.Text = "✅ ГОТОВО! " .. done .. "/" .. count
-        counterLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
-        updateBalance()
-    end
-    
-    isRunning = false
-    exec.BackgroundColor3 = Color3.fromRGB(80, 20, 160)
-    exec.Text = "▶ ВЫПОЛНИТЬ"
-end)
-
-updateBalance()
-print("🚀 ROCKET V7 + Manual Balance загружен. КД 5 сек.")
+-- Инициализация
+local savedBal = loadData()
+if savedBal then inBal.Text = tostring(savedBal) end
+uiScale.Scale = C.Scale
+lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
+calculate()
+refreshList()
