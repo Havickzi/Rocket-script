@@ -1,4 +1,4 @@
--- ROCKET • V11.9 (UI Fix & Instant-Kill)
+-- ROCKET • V12.1 (Deferred Balance Update)
 local player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name, gui.ResetOnSpawn = "ROCKET_Pro", false
 
-local C = { Loss = 5000, MaxResets = 200, Scale = 1.0 }
+local C = { Loss = 5000, MaxResets = 100, Scale = 1.0 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0 }
 
 local inBal, inRes, lblRemain, lblCounter, status
@@ -46,7 +46,7 @@ local function loadData()
     return nil
 end
 
--- ===== UI (ИСПРАВЛЕННЫЕ РАЗМЕРЫ) =====
+-- ===== UI =====
 local main = create("Frame", {
     Size = UDim2.new(0, 380, 0, 380), Position = UDim2.new(0.5, -190, 0.5, -190),
     BackgroundColor3 = Color3.fromRGB(18, 15, 28), BorderSizePixel = 0, Active = true, Parent = gui, Visible = false,
@@ -86,7 +86,7 @@ UserInputService.InputEnded:Connect(function() dragging = false end)
 local header = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = main })
 create("TextLabel", {
     Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 14, 0, 0),
-    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V11.9",
+    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V12.1",
     TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = 0, Parent = header
 })
 
@@ -157,7 +157,6 @@ local btnRun = makeBtn(0.05, 0.28, "▶ СТАРТ", Color3.fromRGB(0, 180, 120)
 local btnStop = makeBtn(0.36, 0.28, "✖ СТОП", Color3.fromRGB(200, 40, 70))
 local btnRef = makeBtn(0.67, 0.28, "🔄 ОБН.", Color3.fromRGB(70, 50, 120))
 
--- ФИКС ВЫСОТЫ СЧЕТЧИКА (БЫЛО 306 -> СТАЛО 22)
 lblCounter = create("TextLabel", {
     Size = UDim2.new(0.9, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, 294),
     BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "📊 ВСЕГО: 0",
@@ -170,7 +169,7 @@ status = create("TextLabel", {
     TextColor3 = Color3.fromRGB(120, 255, 160), Font = Enum.Font.GothamMedium, TextSize = 11, Parent = main
 }, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
 
--- ===== ЛОГИКА =====
+-- ===== ЛОГИКА СБРОСА =====
 local function killCharacter(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -194,13 +193,15 @@ end
 btnRun.MouseButton1Click:Connect(function()
     if State.isRunning then return end
     calculate()
-    local bal = tonumber(inBal.Text) or 0
+    local startBal = tonumber(inBal.Text) or 0
     local resets = math.min(tonumber(inRes.Text) or 1, C.MaxResets)
     
     State.isRunning, State.stop = true, false
     btnRun.Text = "⏳ ..."
 
     task.spawn(function()
+        local successfulResets = 0
+        
         for i = 1, resets do
             if State.stop then break end
             
@@ -217,22 +218,26 @@ btnRun.MouseButton1Click:Connect(function()
                 local targetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
                 if not myRoot or not targetRoot then error("НЕТ СПАВНА") end
                 
-                -- Если дальше 4.5 студов (~1.2 м) — телепортируем, если уже в 1м — моментальный ресет без ТП
-                local dist = (myRoot.Position - targetRoot.Position).Magnitude
-                if dist > 4.5 then
-                    myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 2, 1.5)
-                    task.wait(0.02)
+                -- Расчет дистанции в метрах (1m ≈ 3.57 studs)
+                local distStuds = (myRoot.Position - targetRoot.Position).Magnitude
+                local distMeters = distStuds / 3.57
+                
+                -- ПРОВЕРКА ДИСТАНЦИИ (> 40 метров)
+                if distMeters > 40 then
+                    error("Слишком большое расстояние (" .. math.floor(distMeters) .. "м)")
                 end
+                
+                -- ТЕЛЕПОРТ И СБРОС
+                myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 2, 1.5)
+                task.wait(0.03)
                 
                 killCharacter(myChar)
                 
-                bal = math.max(bal - C.Loss, 0)
+                successfulResets = successfulResets + 1
                 State.totalDone = State.totalDone + 1
                 
-                inBal.Text = tostring(bal)
                 lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
                 status.Text = "⚡ " .. i .. "/" .. resets .. " | " .. target.Name
-                saveData()
                 
                 if i < resets and not State.stop then
                     player.CharacterAdded:Wait()
@@ -241,9 +246,14 @@ btnRun.MouseButton1Click:Connect(function()
 
             if not success then
                 status.Text = "⚠️ " .. tostring(err)
-                task.wait(0.5)
+                task.wait(1)
             end
         end
+        
+        -- ОБНОВЛЯЕМ БАЛАНС ТОЛЬКО ПОСЛЕ ЗАВЕРШЕНИЯ
+        local finalBal = math.max(startBal - (successfulResets * C.Loss), 0)
+        inBal.Text = tostring(finalBal)
+        calculate()
         
         State.isRunning = false
         btnRun.Text = "▶ СТАРТ"
