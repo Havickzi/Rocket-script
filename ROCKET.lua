@@ -1,4 +1,4 @@
--- ROCKET • V11.6 (Рабочая версия)
+-- ROCKET • V11.7 (Instant-Auto)
 local player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
@@ -6,10 +6,9 @@ local HttpService = game:GetService("HttpService")
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name, gui.ResetOnSpawn = "ROCKET_Pro", false
 
-local C = { Loss = 5000, Delay = 5.0, MaxResets = 100, Scale = 1.0 }
+local C = { Loss = 5000, MaxResets = 100, Scale = 1.0 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0 }
 
--- Объявляем переменные UI заранее для доступа из функций
 local inBal, inRes, lblRemain, lblCounter, status
 
 local function create(class, props, children)
@@ -87,7 +86,7 @@ UserInputService.InputEnded:Connect(function() dragging = false end)
 local header = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = main })
 create("TextLabel", {
     Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 14, 0, 0),
-    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V11.6",
+    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V11.7",
     TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = 0, Parent = header
 })
 
@@ -159,7 +158,7 @@ local btnStop = makeBtn(0.36, 0.28, "✖ СТОП", Color3.fromRGB(200, 40, 70))
 local btnRef = makeBtn(0.67, 0.28, "🔄 ОБН.", Color3.fromRGB(70, 50, 120))
 
 lblCounter = create("TextLabel", {
-    Size = UDim2.new(0.9, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, 306),
+    Size = UDim2.new(0.9, 0, 0, 306), Position = UDim2.new(0.05, 0, 0, 306),
     BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "📊 ВСЕГО: 0",
     TextColor3 = Color3.fromRGB(200, 200, 250), Font = Enum.Font.GothamMedium, TextSize = 11, Parent = main
 }, { create("UICorner", { CornerRadius = UDim.new(0, 5) }) })
@@ -170,7 +169,7 @@ status = create("TextLabel", {
     TextColor3 = Color3.fromRGB(120, 255, 160), Font = Enum.Font.GothamMedium, TextSize = 11, Parent = main
 }, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
 
--- ===== ИСПРАВЛЕННЫЙ СБРОС И ЛОГИКА =====
+-- ===== ФУНКЦИЯ УБИЙСТВА =====
 local function killCharacter(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -191,6 +190,7 @@ local function getValidTarget()
     end
 end
 
+-- ===== МГНОВЕННАЯ ЛОГИКА ТЕЛЕПОРТА И СМЕРТИ =====
 btnRun.MouseButton1Click:Connect(function()
     if State.isRunning then return end
     calculate()
@@ -205,21 +205,24 @@ btnRun.MouseButton1Click:Connect(function()
             if State.stop then break end
             
             local success, err = pcall(function()
+                -- 1. Ждем появления тела после респавна
+                local myChar = player.Character or player.CharacterAdded:Wait()
+                local myRoot = myChar:WaitForChild("HumanoidRootPart", 5)
+                
                 local target = getValidTarget()
                 if not target then error("НЕТ ЦЕЛЕЙ") end
                 
-                local myChar = player.Character
-                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
                 local targetRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-                
                 if not myRoot or not targetRoot then error("НЕТ СПАВНА") end
                 
+                -- 2. МГНОВЕННЫЙ ТЕЛЕПОРТ
                 myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 2, 1.5)
-                task.wait(0.15)
                 
+                -- 3. МИНУТНАЯ ПАУЗА ДЛЯ РЕГИСТРАЦИИ ПОЗИЦИИ СЕРВЕРОМ И МГНОВЕННАЯ СМЕРТЬ
+                task.wait(0.05)
                 killCharacter(myChar)
-                player.CharacterAdded:Wait()
                 
+                -- 4. ОБНОВЛЕНИЕ ДАННЫХ
                 bal = math.max(bal - C.Loss, 0)
                 State.totalDone = State.totalDone + 1
                 
@@ -227,13 +230,15 @@ btnRun.MouseButton1Click:Connect(function()
                 lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
                 status.Text = "⚡ " .. i .. "/" .. resets .. " | " .. target.Name
                 saveData()
+                
+                -- 5. ОЖИДАНИЕ СЛЕДУЮЩЕГО СЕССИОННОГО СПАВНА
+                player.CharacterAdded:Wait()
             end)
 
             if not success then
                 status.Text = "⚠️ " .. tostring(err)
+                task.wait(1)
             end
-            
-            task.wait(C.Delay)
         end
         
         State.isRunning = false
