@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name, gui.ResetOnSpawn = "ROCKET_Pro", false
 
-local C = { Loss = 5000, MaxResets = 100, Scale = 1.0 }
+local C = { Loss = 5000, MaxResets = 200, Scale = 1.0 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0 }
 
 local inBal, inRes, lblRemain, lblCounter, status
