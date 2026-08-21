@@ -1,12 +1,52 @@
--- ROCKET • V12.2 (Max Resets 1000)
+-- ROCKET • V12.3
 local player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name, gui.ResetOnSpawn = "ROCKET_Pro", false
+-- ===== МОДУЛЬ АНТИЧИТ-ЗАЩИТЫ (BYPASS SHIELD) =====
+pcall(function()
+    local rawmeta = (getrawmetatable or debug.getmetatable)
+    local setreadonly = setreadonly or make_writeable
+    local hookmetatable = hookmetatable or hookfunction
 
--- ИЗМЕНЕНО: MaxResets поднят до 1000
+    if rawmeta and setreadonly then
+        local gmt = rawmeta(game)
+        local oldNamecall = gmt.__namecall
+        setreadonly(gmt, false)
+
+        gmt.__namecall = (newcclosure or function(f) return f end)(function(self, ...)
+            local method = (getnamecallmethod and getnamecallmethod()) or ""
+            local args = {...}
+
+            -- 1. Блокировка локального кика
+            if method == "Kick" or method == "kick" then
+                return nil
+            end
+
+            -- 2. Блокировка подозрительных античит-ремоутов
+            if method == "FireServer" or method == "InvokeServer" then
+                local remoteName = string.lower(tostring(self.Name))
+                if string.find(remoteName, "cheat") or string.find(remoteName, "ban") or 
+                   string.find(remoteName, "detect") or string.find(remoteName, "log") or 
+                   string.find(remoteName, "flag") or string.find(remoteName, "check") then
+                    return nil
+                end
+            end
+
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(gmt, true)
+    end
+end)
+
+-- ===== ИНИЦИАЛИЗАЦИЯ И СУПЕР-ЗАЩИТА UI =====
+local parentGui = (gethui and gethui()) or 
+                  (game:GetService("CoreGui"):FindFirstChild("RobloxGui") and game:GetService("CoreGui")) or 
+                  player:WaitForChild("PlayerGui")
+
+local gui = Instance.new("ScreenGui", parentGui)
+gui.Name, gui.ResetOnSpawn = "ROCKET_Pro_Shielded", false
+
 local C = { Loss = 5000, MaxResets = 1000, Scale = 1.0 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0 }
 
@@ -47,7 +87,7 @@ local function loadData()
     return nil
 end
 
--- ===== UI =====
+-- ===== UI ИНТЕРФЕЙС =====
 local main = create("Frame", {
     Size = UDim2.new(0, 380, 0, 380), Position = UDim2.new(0.5, -190, 0.5, -190),
     BackgroundColor3 = Color3.fromRGB(18, 15, 28), BorderSizePixel = 0, Active = true, Parent = gui, Visible = false,
@@ -87,8 +127,8 @@ UserInputService.InputEnded:Connect(function() dragging = false end)
 local header = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = main })
 create("TextLabel", {
     Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 14, 0, 0),
-    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V12.2",
-    TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = 0, Parent = header
+    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V12.3 [SHIELD]",
+    TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 15, TextXAlignment = 0, Parent = header
 })
 
 local function makeInput(y, labelText, defaultVal, textColor)
@@ -166,11 +206,11 @@ lblCounter = create("TextLabel", {
 
 status = create("TextLabel", {
     Size = UDim2.new(0.9, 0, 0, 24), Position = UDim2.new(0.05, 0, 0, 322),
-    BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "ГОТОВ",
+    BackgroundColor3 = Color3.fromRGB(12, 10, 20), Text = "ГОТОВ (🛡️ Защита вкл)",
     TextColor3 = Color3.fromRGB(120, 255, 160), Font = Enum.Font.GothamMedium, TextSize = 11, Parent = main
 }, { create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
 
--- ===== ЛОГИКА СБРОСА =====
+-- ===== ОСНОВНЫЕ ФУНКЦИИ =====
 local function killCharacter(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -188,6 +228,18 @@ local function getValidTarget()
         if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             return p
         end
+    end
+end
+
+-- Сброс скорости персонажа для обхода физического античита
+local function resetVelocity(root)
+    if not root then return end
+    if root:FindFirstChild("AssemblyLinearVelocity") then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    else
+        root.Velocity = Vector3.zero
+        root.RotVelocity = Vector3.zero
     end
 end
 
@@ -228,8 +280,11 @@ btnRun.MouseButton1Click:Connect(function()
                     error("Слишком большое расстояние (" .. math.floor(distMeters) .. "м)")
                 end
                 
-                -- ТЕЛЕПОРТ И СБРОС
+                -- СБРОС СКОРОСТИ + ТЕЛЕПОРТ
+                resetVelocity(myRoot)
                 myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 2, 1.5)
+                resetVelocity(myRoot)
+                
                 task.wait(0.03)
                 
                 killCharacter(myChar)
@@ -251,7 +306,7 @@ btnRun.MouseButton1Click:Connect(function()
             end
         end
         
-        -- ОБНОВЛЯЕМ БАЛАНС ТОЛЬКО ПОСЛЕ ЗАВЕРШЕНИЯ
+        -- ОБНОВЛЕНИЕ БАЛАНСА ПОСЛЕ ВСЕХ РЕСЕТОВ
         local finalBal = math.max(startBal - (successfulResets * C.Loss), 0)
         inBal.Text = tostring(finalBal)
         calculate()
