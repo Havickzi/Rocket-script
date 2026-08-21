@@ -1,4 +1,4 @@
--- ROCKET • V12.1 (Deferred Balance Update)
+-- ROCKET • V12.2 (Max Resets 1000)
 local player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
@@ -6,7 +6,8 @@ local HttpService = game:GetService("HttpService")
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name, gui.ResetOnSpawn = "ROCKET_Pro", false
 
-local C = { Loss = 5000, MaxResets = 100, Scale = 1.0 }
+-- ИЗМЕНЕНО: MaxResets поднят до 1000
+local C = { Loss = 5000, MaxResets = 1000, Scale = 1.0 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0 }
 
 local inBal, inRes, lblRemain, lblCounter, status
@@ -86,7 +87,7 @@ UserInputService.InputEnded:Connect(function() dragging = false end)
 local header = create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = main })
 create("TextLabel", {
     Size = UDim2.new(1, -40, 0, 40), Position = UDim2.new(0, 14, 0, 0),
-    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V12.1",
+    BackgroundTransparency = 1, Text = "🚀 ROCKET • PRO V12.2",
     TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = 0, Parent = header
 })
 
