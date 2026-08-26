@@ -1,16 +1,39 @@
--- ROCKET • V14.19 (Fixed XP Logic, No Saves, Distance Check)
-local Players, UIS, Http, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("HttpService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
+-- ROCKET • V2
+local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
--- АНТИЧИТ
+if getgenv().RocketGui and typeof(getgenv().RocketGui) == "Instance" then
+    pcall(function() getgenv().RocketGui:Destroy() end)
+end
+if getgenv().RocketConns and type(getgenv().RocketConns) == "table" then
+    for _, conn in ipairs(getgenv().RocketConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+end
+getgenv().RocketConns = {}
+local function addConn(conn)
+    table.insert(getgenv().RocketConns, conn)
+    return conn
+end
+
+-- АНТИЧИТ (HOOKMETAMETHOD)
 pcall(function()
-    local gmt = getrawmetatable and getrawmetatable(game)
-    if gmt and setreadonly then
+    if hookmetamethod then
+        local old
+        old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            local m = getnamecallmethod and getnamecallmethod() or ""
+            if not checkcaller() and (m:lower() == "kick" or (m == "FireServer" or m == "InvokeServer") and string.match(self.Name:lower(), "cheat|ban|detect|log|flag")) then
+                return nil
+            end
+            return old(self, ...)
+        end))
+    elseif getrawmetatable and setreadonly then
+        local gmt = getrawmetatable(game)
         setreadonly(gmt, false)
         local old = gmt.__namecall
         gmt.__namecall = newcclosure(function(self, ...)
             local m = getnamecallmethod and getnamecallmethod() or ""
-            if m:lower() == "kick" or (m == "FireServer" or m == "InvokeServer") and string.match(self.Name:lower(), "cheat|ban|detect|log|flag") then
+            if not checkcaller() and (m:lower() == "kick" or (m == "FireServer" or m == "InvokeServer") and string.match(self.Name:lower(), "cheat|ban|detect|log|flag")) then
                 return nil
             end
             return old(self, ...)
@@ -20,18 +43,42 @@ pcall(function()
 end)
 
 local C = { Loss = 5000, MaxResets = 1000, Mode = "Resets" }
-local XP = { Enabled = true, CheckType = "Secondary", MoveToTarget = true, StopDist = 6, MaxDist = 90, Sprint = true, Noclip = true, Delay = 0.5, BlacklistTime = 15, AutoReturn = true, ReturnPos = CFrame.new(2825.07, 18.64, 109.55, -0.788, 0, -0.615, 0, 1, 0, 0.615, 0, -0.788) }
-local State = { isRunning = false, stop = false, target = nil, totalDone = 0, totalXP = 0, lastStampTime = 0 }
+local XP = { 
+    Enabled = true, 
+    CheckType = "Secondary", 
+    MoveToTarget = true, 
+    StopDist = 6, 
+    MaxDist = 90, 
+    Sprint = true, 
+    Noclip = true, 
+    AntiAFK = true,
+    Delay = 0.5, 
+    BlacklistTime = 120, 
+    AutoReturn = true, 
+    ReturnPos = CFrame.new(2825.07, 18.64, 109.55, -0.788, 0, -0.615, 0, 1, 0, 0.615, 0, -0.788) 
+}
+local State = { isRunning = false, stop = false, target = nil, totalDone = 0, totalXP = 0, lastStampTime = 0, startTime = 0 }
 
 local succAuth, BorderAuth = pcall(function() return require(RS.SharedModules.BorderAuthorisationUtil) end)
 local succClient, Client = pcall(function() return require(RS.SharedModules.Pronghorn.Remotes).Client end)
-local processed, isSprinting, parts = {}, false, {}
+local processed, isSprinting = {}, false
 
 local function pressKey(key, state) pcall(function() VIM:SendKeyEvent(state, key, false, game) end) end
 local function releaseKeys()
     if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
     pressKey(Enum.KeyCode.R, false); pressKey(Enum.KeyCode.F, false)
 end
+
+-- АНТИ-АФК СИСТЕМА
+addConn(LP.Idled:Connect(function()
+    if XP.AntiAFK then
+        local vu = game:GetService("VirtualUser")
+        pcall(function()
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new())
+        end)
+    end
+end))
 
 local function equipStamp()
     local char, bp = LP.Character, LP:FindFirstChild("Backpack")
@@ -55,7 +102,6 @@ local function safeTeleport(targetCF)
     root.CFrame, root.Anchored = targetCF, false
 end
 
--- ОЖИДАНИЕ ЖИВОГО ПЕРСОНАЖА
 local function getChar(timeout)
     local start = os.clock()
     while os.clock() - start < timeout do
@@ -67,22 +113,24 @@ local function getChar(timeout)
     return nil
 end
 
--- НОКЛИП И КЭШ
-local function setupChar(char)
-    parts = {}
-    for _, d in ipairs(char:GetDescendants()) do if d:IsA("BasePart") then table.insert(parts, d) end end
-    char.DescendantAdded:Connect(function(d) if d:IsA("BasePart") then table.insert(parts, d) end end)
+addConn(LP.CharacterAdded:Connect(function()
     task.delay(1.2, equipStamp)
-end
-if LP.Character then setupChar(LP.Character) end
-LP.CharacterAdded:Connect(setupChar)
+end))
+if LP.Character then task.delay(0.5, equipStamp) end
 
-Run.Stepped:Connect(function()
+-- НОКЛИП
+addConn(Run.Stepped:Connect(function()
     if C.Mode == "XP" and XP.Noclip then
-        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-        if root and not root.Anchored then for _, p in ipairs(parts) do if p.Parent then p.CanCollide = false end end end
+        local char = LP.Character
+        if char then
+            local mainParts = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Head"}
+            for _, pName in ipairs(mainParts) do
+                local p = char:FindFirstChild(pName)
+                if p and p:IsA("BasePart") then p.CanCollide = false end
+            end
+        end
     end
-end)
+end))
 
 -- UI КОНСТРУКТОР
 local function c(class, props, kids)
@@ -93,27 +141,27 @@ local function c(class, props, kids)
 end
 
 local gui = c("ScreenGui", { Name = "ROCKET_Opt", ResetOnSpawn = false, Parent = (gethui and gethui()) or LP:WaitForChild("PlayerGui") })
-local main = c("Frame", { Size = UDim2.new(0, 350, 0, 340), Position = UDim2.new(0.5, -175, 0.5, -170), BackgroundColor3 = Color3.fromRGB(18, 15, 28), Visible = false, Parent = gui }, {
+getgenv().RocketGui = gui
+
+local main = c("Frame", { Size = UDim2.new(0, 350, 0, 395), Position = UDim2.new(0.5, -175, 0.5, -197), BackgroundColor3 = Color3.fromRGB(18, 15, 28), Visible = false, Parent = gui }, {
     c("UICorner", { CornerRadius = UDim.new(0, 12) }), c("UIStroke", { Color = Color3.fromRGB(120, 80, 220), Thickness = 1.5 })
 })
 
 local openBtn = c("TextButton", { Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(0, 10, 0.5, -20), BackgroundColor3 = Color3.fromRGB(18, 15, 28), Text = "🚀", TextSize = 18, Parent = gui }, { c("UICorner", { CornerRadius = UDim.new(1, 0) }) })
-openBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
-UIS.InputBegan:Connect(function(i, g) if not g and i.KeyCode == Enum.KeyCode.RightShift then main.Visible = not main.Visible end end)
+addConn(openBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end))
+addConn(UIS.InputBegan:Connect(function(i, g) if not g and i.KeyCode == Enum.KeyCode.RightShift then main.Visible = not main.Visible end end))
 
--- Перетаскивание
 local dragging, dragStart, startPos
-main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging, dragStart, startPos = true, i.Position, main.Position end end)
-UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
-UIS.InputEnded:Connect(function() dragging = false end)
+addConn(main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging, dragStart, startPos = true, i.Position, main.Position end end))
+addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end))
+addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
--- Шапка
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V14.19", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
-local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 200), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
-local xpHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 200), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Visible = false, Parent = main })
+local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
+local xpHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Visible = false, Parent = main })
 
 local function makeInput(parent, y, label, val, color)
     c("TextLabel", { Size = UDim2.new(0.35, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, y), BackgroundTransparency = 1, Text = label, TextColor3 = Color3.fromRGB(180,180,210), Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, Parent = parent })
@@ -125,8 +173,8 @@ local resBox = makeInput(resHolder, 26, "Кол-во ресетов:", "5", Colo
 local remainLbl = c("TextLabel", { Size = UDim2.new(0.9, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, 52), BackgroundColor3 = Color3.fromRGB(12,10,20), Text = "💵 ОСТАТОК: 0 $", TextColor3 = Color3.fromRGB(0, 240, 255), Font = Enum.Font.GothamBold, TextSize = 10, Parent = resHolder }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local function calc() remainLbl.Text = "💵 ОСТАТОК: " .. math.max((tonumber(balBox.Text) or 0) - ((tonumber(resBox.Text) or 0) * C.Loss), 0) .. " $" end
-balBox:GetPropertyChangedSignal("Text"):Connect(calc)
-resBox:GetPropertyChangedSignal("Text"):Connect(calc)
+addConn(balBox:GetPropertyChangedSignal("Text"):Connect(calc))
+addConn(resBox:GetPropertyChangedSignal("Text"):Connect(calc))
 
 local list = c("ScrollingFrame", { Size = UDim2.new(1, -6, 1, -6), Position = UDim2.new(0, 3, 0, 3), BackgroundTransparency = 1, CanvasSize = UDim2.new(0,0,0,0), ScrollBarThickness = 2, Parent = c("Frame", { Size = UDim2.new(0.9, 0, 0, 110), Position = UDim2.new(0.05, 0, 0, 78), BackgroundColor3 = Color3.fromRGB(12,10,20), Parent = resHolder }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) }) })
 
@@ -168,14 +216,15 @@ end
 makeToggle(xpHolder, 108, "🏃 Спринт:", "Sprint")
 makeToggle(xpHolder, 134, "🛡️ Ноклип:", "Noclip")
 makeToggle(xpHolder, 160, "🏠 Авто-возврат:", "AutoReturn")
+makeToggle(xpHolder, 186, "🤖 Анти-АФК:", "AntiAFK")
 
 local function makeBtn(x, w, text, color)
-    return c("TextButton", { Size = UDim2.new(w, 0, 0, 26), Position = UDim2.new(x, 0, 0, 245), BackgroundColor3 = color, Text = text, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 11, Parent = main }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
+    return c("TextButton", { Size = UDim2.new(w, 0, 0, 26), Position = UDim2.new(x, 0, 0, 295), BackgroundColor3 = color, Text = text, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 11, Parent = main }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 end
 
 local btnRun, btnStop, btnRef = makeBtn(0.05, 0.28, "▶ СТАРТ", Color3.fromRGB(0,180,120)), makeBtn(0.36, 0.28, "✖ СТОП", Color3.fromRGB(200,40,70)), makeBtn(0.67, 0.28, "🔄 ОБН.", Color3.fromRGB(70,50,120))
-local lblCounter = c("TextLabel", { Size = UDim2.new(0.9, 0, 0, 20), Position = UDim2.new(0.05, 0, 0, 276), BackgroundColor3 = Color3.fromRGB(12,10,20), Text = "📊 ВСЕГО: 0", TextColor3 = Color3.fromRGB(200,200,250), Font = Enum.Font.GothamMedium, TextSize = 10, Parent = main }, { c("UICorner", { CornerRadius = UDim.new(0, 4) }) })
-local status = c("TextLabel", { Size = UDim2.new(0.9, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, 298), BackgroundColor3 = Color3.fromRGB(12,10,20), Text = "ГОТОВ", TextColor3 = Color3.fromRGB(120,255,160), Font = Enum.Font.GothamMedium, TextSize = 10, Parent = main }, { c("UICorner", { CornerRadius = UDim.new(0, 4) }) })
+local lblCounter = c("TextLabel", { Size = UDim2.new(0.9, 0, 0, 20), Position = UDim2.new(0.05, 0, 0, 331), BackgroundColor3 = Color3.fromRGB(12,10,20), Text = "📊 ВСЕГО: 0", TextColor3 = Color3.fromRGB(200,200,250), Font = Enum.Font.GothamMedium, TextSize = 10, Parent = main }, { c("UICorner", { CornerRadius = UDim.new(0, 4) }) })
+local status = c("TextLabel", { Size = UDim2.new(0.9, 0, 0, 22), Position = UDim2.new(0.05, 0, 0, 353), BackgroundColor3 = Color3.fromRGB(12,10,20), Text = "ГОТОВ", TextColor3 = Color3.fromRGB(120,255,160), Font = Enum.Font.GothamMedium, TextSize = 10, Parent = main }, { c("UICorner", { CornerRadius = UDim.new(0, 4) }) })
 
 local function switchMode(m)
     C.Mode = m
@@ -186,7 +235,7 @@ local function switchMode(m)
 end
 modeBtn.MouseButton1Click:Connect(function() switchMode(C.Mode == "Resets" and "XP" or "Resets") end)
 
--- ИСПРАВЛЕННАЯ XP ЛОГИКА (ПОД ЛОГИКУ ОРИГИНАЛЬНОГО ШТАМПА)
+-- XP ЛОГИКА
 local function runXP()
     pcall(function()
         local char = LP.Character
@@ -202,7 +251,6 @@ local function runXP()
         if civTeam then
             for _, p in ipairs(civTeam:GetPlayers()) do
                 if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and not processed[p] then
-                    -- Проверка по модулю игры HasStampAction
                     local hasAction = true
                     if BorderAuth and BorderAuth.HasStampAction then
                         hasAction = BorderAuth:HasStampAction(p)
@@ -222,31 +270,52 @@ local function runXP()
         if target then
             local tRoot = target.Character.HumanoidRootPart
             local stopD = tonumber(xpStop.Text) or 6
+            
             if XP.MoveToTarget and minD > stopD then
                 status.Text = "🏃 ИДУ К " .. target.Name
                 if XP.Sprint and not isSprinting then isSprinting = true; pressKey(Enum.KeyCode.LeftShift, true) end
+                
+                local moveStart = os.clock()
+                local timedOut = false
+                
                 while not State.stop and tRoot.Parent and (root.Position - tRoot.Position).Magnitude > stopD do
+                    if os.clock() - moveStart > 8 then
+                        timedOut = true
+                        break
+                    end
                     hum:MoveTo(tRoot.Position)
                     task.wait(0.2)
                 end
+                
+                if timedOut then
+                    processed[target] = os.clock()
+                    status.Text = "⏳ ТАЙМАУТ ПРЕСЛЕДОВАНИЯ: " .. target.Name
+                    hum:MoveTo(root.Position)
+                    if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
+                    return
+                end
+                
                 hum:MoveTo(root.Position)
-            else
+            end
+
+            if not State.stop and tRoot and tRoot.Parent then
                 if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
                 target:SetAttribute("LastStamped", os.clock())
 
                 local isSec = XP.CheckType == "Secondary"
-                local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
-                pressKey(key, true); task.wait(0.03); pressKey(key, false)
-
+                if isSec and BorderAuth and BorderAuth.CanSendToInspection then
+                    local succ, canInspect = pcall(function() return BorderAuth:CanSendToInspection(target) end)
+                    if succ and not canInspect then isSec = false end
+                end
+                
                 if Client and Client.BorderAuthorisationService then
                     pcall(function()
-                        if isSec then
-                            Client.BorderAuthorisationService:SendToInspection(target)
-                        else
-                            Client.BorderAuthorisationService:GrantEntry(target)
-                        end
+                        if isSec then Client.BorderAuthorisationService:SendToInspection(target) else Client.BorderAuthorisationService:GrantEntry(target) end
                     end)
+                else
+                    local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
+                    pressKey(key, true); task.wait(0.03); pressKey(key, false)
                 end
 
                 processed[target] = os.clock()
@@ -257,7 +326,7 @@ local function runXP()
             end
         else
             if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
-            if os.clock() - State.lastStampTime < 8 then
+            if os.clock() - State.lastStampTime < 4 then
                 status.Text = "⏳ ОЖИДАНИЕ ПАССАЖИРОВ..."
             elseif XP.AutoReturn and XP.ReturnPos and (root.Position - XP.ReturnPos.Position).Magnitude > 3 then
                 status.Text = "🏠 ВОЗВРАТ НА ПОСТ..."
@@ -267,7 +336,7 @@ local function runXP()
     end)
 end
 
--- АНТИ-ПАДЕНИЕ ПОД КАРТУ
+-- АНТИ-ПАДЕНИЕ
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -286,10 +355,13 @@ end)
 -- СТАРТ / СТОП
 btnRun.MouseButton1Click:Connect(function()
     if State.isRunning then return end
-    State.isRunning, State.stop = true, false
+    State.isRunning, State.stop = false, false
 
     if C.Mode == "XP" then
+        State.isRunning = true
+        State.startTime = os.clock()
         btnRun.Text, status.Text, State.lastStampTime = "⏳ XP...", "🎯 XP ЗАПУЩЕН", 0
+        
         task.spawn(function()
             equipStamp()
             while not State.stop do
@@ -300,11 +372,11 @@ btnRun.MouseButton1Click:Connect(function()
             State.isRunning, btnRun.Text, status.Text = false, "▶ СТАРТ", "⛔ ОСТАНОВЛЕНО"
         end)
     else
+        State.isRunning = true
         calc()
         local startBal = tonumber(balBox.Text) or 0
         local resets = math.min(tonumber(resBox.Text) or 1, C.MaxResets)
         
-        -- Проверка дистанции до цели перед запуском
         local t = State.target or (function() for _, p in ipairs(Players:GetPlayers()) do if p ~= LP then return p end end end)()
         local char = LP.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -312,12 +384,6 @@ btnRun.MouseButton1Click:Connect(function()
 
         if not tRoot or not root then
             status.Text = "❌ Цель не найдена!"
-            State.isRunning = false
-            return
-        end
-
-        if (root.Position - tRoot.Position).Magnitude > 90 then
-            status.Text = "❌ Игрок слишком далеко (>90)!"
             State.isRunning = false
             return
         end
@@ -335,12 +401,6 @@ btnRun.MouseButton1Click:Connect(function()
                 local targetRoot = t and t.Character and t.Character:FindFirstChild("HumanoidRootPart")
 
                 if myRoot and targetRoot and hum then
-                    -- Проверка дистанции во время выполнения
-                    if (myRoot.Position - targetRoot.Position).Magnitude > 90 then
-                        status.Text = "❌ Игрок ушел слишком далеко!"
-                        break
-                    end
-
                     if myRoot.Anchored then myRoot.Anchored = false end
                     myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 2, 1.5)
                     task.wait(0.05)
@@ -348,7 +408,7 @@ btnRun.MouseButton1Click:Connect(function()
                     done += 1
                     State.totalDone += 1
                     lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
-                    status.Text = "⚡ " .. i .. "/" .. resets
+                    status.Test = "⚡ " .. i .. "/" .. resets
                     task.wait(0.8)
                 else
                     task.wait(1)
@@ -368,4 +428,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V14.19 успешно загружен!")
+print("🚀 ROCKET V2 успешно загружен с Anti-AFK!")
