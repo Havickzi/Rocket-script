@@ -1,4 +1,4 @@
--- ROCKET • V2 (Xeno Context Fix Edition)
+-- ROCKET • V2 (RemoteEvent & Stamp Fix Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -6,21 +6,14 @@ if getgenv().RocketGui and typeof(getgenv().RocketGui) == "Instance" then
     pcall(function() getgenv().RocketGui:Destroy() end)
 end
 if getgenv().RocketConns and type(getgenv().RocketConns) == "table" then
-    for _, conn in ipairs(getgenv().RocketConns) do
-        pcall(function() conn:Disconnect() end)
-    end
+    for _, conn in ipairs(getgenv().RocketConns) do pcall(function() conn:Disconnect() end) end
 end
 getgenv().RocketConns = {}
-local function addConn(conn)
-    table.insert(getgenv().RocketConns, conn)
-    return conn
-end
+local function addConn(conn) table.insert(getgenv().RocketConns, conn); return conn end
 
--- АНТИЧИТ ХУК ДЛЯ XENO
 pcall(function()
     if hookmetamethod then
-        local old
-        old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local old; old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             local m = getnamecallmethod and getnamecallmethod() or ""
             if not checkcaller() and (m:lower() == "kick" or (m == "FireServer" or m == "InvokeServer") and string.match(self.Name:lower(), "cheat|ban|detect|log|flag")) then
                 return nil
@@ -32,17 +25,8 @@ end)
 
 local C = { Loss = 5000, MaxResets = 1000, Mode = "Resets" }
 local XP = { 
-    Enabled = true, 
-    CheckType = "Secondary", 
-    MoveToTarget = true, 
-    StopDist = 6, 
-    MaxDist = 90, 
-    Sprint = true, 
-    Noclip = true, 
-    AntiAFK = true,
-    Delay = 0.5, 
-    BlacklistTime = 120, 
-    AutoReturn = true, 
+    Enabled = true, CheckType = "Secondary", MoveToTarget = true, StopDist = 6, MaxDist = 90, 
+    Sprint = true, Noclip = true, AntiAFK = true, Delay = 0.5, BlacklistTime = 120, AutoReturn = true, 
     ReturnPos = CFrame.new(2825.07, 18.64, 109.55, -0.788, 0, -0.615, 0, 1, 0, 0.615, 0, -0.788) 
 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0, totalXP = 0, lastStampTime = 0, startTime = 0 }
@@ -55,22 +39,31 @@ local function releaseKeys()
     pressKey(Enum.KeyCode.R, false); pressKey(Enum.KeyCode.F, false)
 end
 
--- АНТИ-АФК СИСТЕМА
 addConn(LP.Idled:Connect(function()
     if XP.AntiAFK then
         local vu = game:GetService("VirtualUser")
-        pcall(function()
-            vu:CaptureController()
-            vu:ClickButton2(Vector2.new())
-        end)
+        pcall(function() vu:CaptureController(); vu:ClickButton2(Vector2.new()) end)
     end
 end))
 
-local function equipStamp()
+local function equipTool()
     local char, bp = LP.Character, LP:FindFirstChild("Backpack")
-    local tool = bp and (bp:FindFirstChild("Stamp") or char and char:FindFirstChild("Stamp"))
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if tool and hum then pcall(function() hum:EquipTool(tool) end) end
+    if not char then return nil end
+    local activeTool = char:FindFirstChildOfClass("Tool")
+    if activeTool then return activeTool end
+    if bp then
+        local targetTool = bp:FindFirstChild("Stamp") or char:FindFirstChild("Stamp")
+        if not targetTool then
+            for _, item in ipairs(bp:GetChildren()) do if item:IsA("Tool") then targetTool = item; break end end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if targetTool and hum then
+            pcall(function() hum:EquipTool(targetTool) end)
+            task.wait(0.2)
+            return char:FindFirstChildOfClass("Tool")
+        end
+    end
+    return nil
 end
 
 local function safeTeleport(targetCF)
@@ -88,29 +81,14 @@ local function safeTeleport(targetCF)
     root.CFrame, root.Anchored = targetCF, false
 end
 
-local function getChar(timeout)
-    local start = os.clock()
-    while os.clock() - start < timeout do
-        if State.stop then return nil end
-        local char, hum = LP.Character, LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-        if char and char:FindFirstChild("HumanoidRootPart") and hum and hum.Health > 0 then return char end
-        task.wait(0.2)
-    end
-    return nil
-end
+addConn(LP.CharacterAdded:Connect(function() task.delay(1.2, equipTool) end))
+if LP.Character then task.delay(0.5, equipTool) end
 
-addConn(LP.CharacterAdded:Connect(function()
-    task.delay(1.2, equipStamp)
-end))
-if LP.Character then task.delay(0.5, equipStamp) end
-
--- НОКЛИП
 addConn(Run.Stepped:Connect(function()
     if C.Mode == "XP" and XP.Noclip then
         local char = LP.Character
         if char then
-            local mainParts = {"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Head"}
-            for _, pName in ipairs(mainParts) do
+            for _, pName in ipairs({"HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Head"}) do
                 local p = char:FindFirstChild(pName)
                 if p and p:IsA("BasePart") then p.CanCollide = false end
             end
@@ -118,7 +96,6 @@ addConn(Run.Stepped:Connect(function()
     end
 end))
 
--- UI КОНСТРУКТОР С БЕЗОПАСНЫМ GUI PARENT ДЛЯ XENO
 local function c(class, props, kids)
     local inst = Instance.new(class)
     for k, v in pairs(props or {}) do inst[k] = v end
@@ -127,12 +104,7 @@ local function c(class, props, kids)
 end
 
 local guiParent = LP:WaitForChild("PlayerGui")
-pcall(function()
-    if gethui then
-        local h = gethui()
-        if h then guiParent = h end
-    end
-end)
+pcall(function() if gethui then local h = gethui(); if h then guiParent = h end end end)
 
 local gui = c("ScreenGui", { Name = "ROCKET_Opt", ResetOnSpawn = false, Parent = guiParent })
 getgenv().RocketGui = gui
@@ -229,7 +201,6 @@ local function switchMode(m)
 end
 modeBtn.MouseButton1Click:Connect(function() switchMode(C.Mode == "Resets" and "XP" or "Resets") end)
 
--- XP ЛОГИКА (БЕЗ ОШИБОЧНЫХ REQUIRE МОДУЛЕЙ)
 local function runXP()
     pcall(function()
         local char = LP.Character
@@ -266,17 +237,14 @@ local function runXP()
                 local timedOut = false
                 
                 while not State.stop and tRoot.Parent and (root.Position - tRoot.Position).Magnitude > stopD do
-                    if os.clock() - moveStart > 8 then
-                        timedOut = true
-                        break
-                    end
+                    if os.clock() - moveStart > 8 then timedOut = true; break end
                     hum:MoveTo(tRoot.Position)
                     task.wait(0.2)
                 end
                 
                 if timedOut then
                     processed[target] = os.clock()
-                    status.Text = "⏳ ТАЙМАУТ ПРЕСЛЕДОВАНИЯ: " .. target.Name
+                    status.Text = "⏳ ТАЙМАУТ: " .. target.Name
                     hum:MoveTo(root.Position)
                     if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
                     return
@@ -290,18 +258,28 @@ local function runXP()
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
                 target:SetAttribute("LastStamped", os.clock())
 
-                -- Достаем штамп и активируем его напрямую через tool:Activate() или нажатие клавиш
-                equipStamp()
-                task.wait(0.05)
+                local activeTool = equipTool()
+                task.wait(0.1)
+
+                local actionDone = false
+                if activeTool then
+                    for _, desc in ipairs(activeTool:GetDescendants()) do
+                        if desc:IsA("RemoteEvent") then
+                            pcall(function() desc:FireServer(target); actionDone = true end)
+                        end
+                    end
+                end
+
+                if not actionDone and activeTool then
+                    pcall(function()
+                        activeTool:Activate()
+                        VIM:SendMouseButtonEvent(400, 300, 0, true, game, 0)
+                        task.wait(0.05)
+                        VIM:SendMouseButtonEvent(400, 300, 0, false, game, 0)
+                    end)
+                end
 
                 local isSec = XP.CheckType == "Secondary"
-                local tool = char and char:FindFirstChild("Stamp")
-                
-                if tool and tool:IsA("Tool") then
-                    pcall(function() tool:Activate() end)
-                end
-                
-                -- Дублируем нажатием клавиши для гарантии (F для вторичной, R для первичной)
                 local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
                 pressKey(key, true)
                 task.wait(0.05)
@@ -329,14 +307,13 @@ local function runXP()
     end)
 end
 
--- АНТИ-ПАДЕНИЕ
 task.spawn(function()
     while true do
         task.wait(0.4)
         if State.isRunning and C.Mode == "XP" then
             local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
             if root and root.Position.Y < -10 and XP.AutoReturn and XP.ReturnPos then
-                status.Text = "⚠️ ПОД КАЛТОЙ! ВОЗВРАТ..."
+                status.Text = "⚠️ ВОЗВРАТ НА ПОСТ..."
                 if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
                 safeTeleport(XP.ReturnPos)
                 task.wait(1)
@@ -345,7 +322,6 @@ task.spawn(function()
     end
 end)
 
--- СТАРТ / СТОП
 btnRun.MouseButton1Click:Connect(function()
     if State.isRunning then return end
     State.isRunning, State.stop = false, false
@@ -357,7 +333,7 @@ btnRun.MouseButton1Click:Connect(function()
         btnRun.Text, status.Text, State.lastStampTime = "⏳ XP...", "🎯 XP ЗАПУЩЕН", 0
         
         task.spawn(function()
-            equipStamp()
+            equipTool()
             while not State.stop do
                 runXP()
                 task.wait(tonumber(xpDel.Text) or 0.5)
@@ -422,4 +398,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 успешно загружен на Xeno без ошибок контекста!")
+print("🚀 ROCKET V2 с обходом активации штампа загружен!")
