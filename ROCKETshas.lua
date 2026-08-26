@@ -1,4 +1,4 @@
--- ROCKET • V2 (Auto-Scan Edition)
+-- ROCKET • V2 (Safe Scan Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -81,21 +81,29 @@ local function safeTeleport(targetCF)
     root.CFrame, root.Anchored = targetCF, false
 end
 
--- Автоматический поиск сервиса авторизации по всей игре
+-- Безопасный выборочный поиск нужного сервиса без спама ошибок
 local function getBorderService()
     if cachedBorderService then return cachedBorderService end
     for _, desc in ipairs(RS:GetDescendants()) do
         if desc:IsA("ModuleScript") then
-            local ok, res = pcall(require, desc)
-            if ok and type(res) == "table" and res.Client then
-                if res.Client.BorderAuthorisationService then
-                    cachedBorderService = res.Client.BorderAuthorisationService
-                    print("[DEBUG] Найден BorderAuthorisationService в:", desc:GetFullName())
-                    return cachedBorderService
-                elseif res.Client.BorderAuthorizationService then
-                    cachedBorderService = res.Client.BorderAuthorizationService
-                    print("[DEBUG] Найден BorderAuthorizationService в:", desc:GetFullName())
-                    return cachedBorderService
+            local name = desc.Name:lower()
+            if name:find("border") or name:find("auth") or name:find("inspection") or name:find("pronghorn") then
+                local ok, res = pcall(require, desc)
+                if ok and type(res) == "table" then
+                    if res.Client then
+                        if res.Client.BorderAuthorisationService then
+                            cachedBorderService = res.Client.BorderAuthorisationService
+                            print("[DEBUG] Успешно найден сервис в:", desc:GetFullName())
+                            return cachedBorderService
+                        elseif res.Client.BorderAuthorizationService then
+                            cachedBorderService = res.Client.BorderAuthorizationService
+                            print("[DEBUG] Успешно найден сервис в:", desc:GetFullName())
+                            return cachedBorderService
+                        end
+                    elseif res.BorderAuthorisationService then
+                        cachedBorderService = res.BorderAuthorisationService
+                        return cachedBorderService
+                    end
                 end
             end
         end
@@ -145,7 +153,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (AutoScan)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (SafeScan)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -299,7 +307,7 @@ local function runXP()
                     pcall(function() BorderService:GrantEntry(target) end)
                 end
             else
-                print("[DEBUG] ОШИБКА: Сервис авторизации все еще не найден сканером!")
+                status.Text = "❌ СЕРВИС НЕ НАЙДЕН!"
             end
 
             processed[target] = os.clock()
@@ -351,8 +359,7 @@ btnRun.MouseButton1Click:Connect(function()
         
         task.spawn(function()
             equipTool()
-            -- Предварительно запускаем сканер сервиса
-            getBorderService()
+            getBorderService() -- предварительный запуск безопасного поиска
             while not State.stop do
                 runXP()
                 task.wait(tonumber(xpDel.Text) or 0.5)
@@ -417,4 +424,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (AutoScan) загружен!")
+print("🚀 ROCKET V2 (SafeScan) загружен без ошибок!")
