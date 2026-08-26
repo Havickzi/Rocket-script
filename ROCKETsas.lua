@@ -1,4 +1,4 @@
--- ROCKET • V2 (Deep Debug Edition)
+-- ROCKET • V2 (Auto-Scan Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -32,6 +32,7 @@ local XP = {
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0, totalXP = 0, lastStampTime = 0, startTime = 0 }
 
 local processed, isSprinting = {}, false
+local cachedBorderService = nil
 
 local function pressKey(key, state) pcall(function() VIM:SendKeyEvent(state, key, false, game) end) end
 local function releaseKeys()
@@ -80,6 +81,28 @@ local function safeTeleport(targetCF)
     root.CFrame, root.Anchored = targetCF, false
 end
 
+-- Автоматический поиск сервиса авторизации по всей игре
+local function getBorderService()
+    if cachedBorderService then return cachedBorderService end
+    for _, desc in ipairs(RS:GetDescendants()) do
+        if desc:IsA("ModuleScript") then
+            local ok, res = pcall(require, desc)
+            if ok and type(res) == "table" and res.Client then
+                if res.Client.BorderAuthorisationService then
+                    cachedBorderService = res.Client.BorderAuthorisationService
+                    print("[DEBUG] Найден BorderAuthorisationService в:", desc:GetFullName())
+                    return cachedBorderService
+                elseif res.Client.BorderAuthorizationService then
+                    cachedBorderService = res.Client.BorderAuthorizationService
+                    print("[DEBUG] Найден BorderAuthorizationService в:", desc:GetFullName())
+                    return cachedBorderService
+                end
+            end
+        end
+    end
+    return nil
+end
+
 addConn(LP.CharacterAdded:Connect(function() task.delay(1.2, equipTool) end))
 if LP.Character then task.delay(0.5, equipTool) end
 
@@ -122,7 +145,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Debug)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (AutoScan)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -203,17 +226,13 @@ modeBtn.MouseButton1Click:Connect(function() switchMode(C.Mode == "Resets" and "
 local function runXP()
     local char = LP.Character
     local hum, root = char and char:FindFirstChildOfClass("Humanoid"), char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then 
-        print("[DEBUG] Персонаж или HumanoidRootPart не найден!")
-        return 
-    end
+    if not hum or not root then return end
 
     local now = os.clock()
     for p, t in pairs(processed) do if now - t > XP.BlacklistTime then processed[p] = nil end end
 
     local target, minD = nil, tonumber(xpMax.Text) or 90
     
-    -- Проверяем команду Civilian, если нет — проверяем всех игроков
     local playersToCheck = {}
     local civTeam = game.Teams:FindFirstChild("Civilian")
     if civTeam then
@@ -236,7 +255,6 @@ local function runXP()
     end
 
     if target then
-        print("[DEBUG] Найдена цель:", target.Name, "Дистанция:", minD)
         local tRoot = target.Character.HumanoidRootPart
         local stopD = tonumber(xpStop.Text) or 6
         
@@ -254,7 +272,6 @@ local function runXP()
             end
             
             if timedOut then
-                print("[DEBUG] Тайм-аут движения к цели:", target.Name)
                 processed[target] = os.clock()
                 status.Text = "⏳ ТАЙМАУТ: " .. target.Name
                 hum:MoveTo(root.Position)
@@ -272,27 +289,17 @@ local function runXP()
             equipTool()
             task.wait(0.1)
 
-            local success, Remotes = pcall(function()
-                return require(ReplicatedStorage:WaitForChild("SharedModules"):WaitForChild("Pronghorn"):WaitForChild("Remotes"))
-            end)
+            local BorderService = getBorderService()
 
-            print("[DEBUG] Модуль Remotes загружен:", success)
-
-            if success and Remotes and Remotes.Client and Remotes.Client.BorderAuthorisationService then
-                local BorderService = Remotes.Client.BorderAuthorisationService
+            if BorderService then
                 target:SetAttribute("LastStamped", os.clock())
-                
                 if XP.CheckType == "Secondary" then
-                    print("[DEBUG] Вызов SendToInspection для", target.Name)
-                    local ok, err = pcall(function() BorderService:SendToInspection(target) end)
-                    print("[DEBUG] SendToInspection результат:", ok, err)
+                    pcall(function() BorderService:SendToInspection(target) end)
                 else
-                    print("[DEBUG] Вызов GrantEntry для", target.Name)
-                    local ok, err = pcall(function() BorderService:GrantEntry(target) end)
-                    print("[DEBUG] GrantEntry результат:", ok, err)
+                    pcall(function() BorderService:GrantEntry(target) end)
                 end
             else
-                print("[DEBUG] ОШИБКА: BorderAuthorisationService не найден!")
+                print("[DEBUG] ОШИБКА: Сервис авторизации все еще не найден сканером!")
             end
 
             processed[target] = os.clock()
@@ -344,6 +351,8 @@ btnRun.MouseButton1Click:Connect(function()
         
         task.spawn(function()
             equipTool()
+            -- Предварительно запускаем сканер сервиса
+            getBorderService()
             while not State.stop do
                 runXP()
                 task.wait(tonumber(xpDel.Text) or 0.5)
@@ -408,4 +417,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (Deep Debug) загружен!")
+print("🚀 ROCKET V2 (AutoScan) загружен!")
