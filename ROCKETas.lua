@@ -1,4 +1,4 @@
--- ROCKET • V2 (Clean Edition)
+-- ROCKET • V2 (Remote Finder Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -32,7 +32,7 @@ local XP = {
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0, totalXP = 0, lastStampTime = 0, startTime = 0 }
 
 local processed, isSprinting = {}, false
-local cachedBorderService = nil
+local cachedGrantRemote, cachedInspectRemote = nil, nil
 
 local function pressKey(key, state) pcall(function() VIM:SendKeyEvent(state, key, false, game) end) end
 local function releaseKeys()
@@ -81,33 +81,22 @@ local function safeTeleport(targetCF)
     root.CFrame, root.Anchored = targetCF, false
 end
 
--- Безопасный поиск сервиса без трогания проблемных модулей (вроде Pronghorn)
-local function getBorderService()
-    if cachedBorderService then return cachedBorderService end
+-- Надежный поиск сетевых событий (RemoteEvent / RemoteFunction)
+local function findRemotes()
+    if cachedGrantRemote and cachedInspectRemote then return cachedGrantRemote, cachedInspectRemote end
     for _, desc in ipairs(RS:GetDescendants()) do
-        if desc:IsA("ModuleScript") then
+        if desc:IsA("RemoteEvent") or desc:IsA("RemoteFunction") then
             local name = desc.Name:lower()
-            -- Исключаем Pronghorn и другие потенциально опасные модули редактора
-            if (name:find("border") or name:find("auth") or name:find("inspection")) and not name:find("pronghorn") then
-                local ok, res = pcall(require, desc)
-                if ok and type(res) == "table" then
-                    if res.Client then
-                        if res.Client.BorderAuthorisationService then
-                            cachedBorderService = res.Client.BorderAuthorisationService
-                            return cachedBorderService
-                        elseif res.Client.BorderAuthorizationService then
-                            cachedBorderService = res.Client.BorderAuthorizationService
-                            return cachedBorderService
-                        end
-                    elseif res.BorderAuthorisationService then
-                        cachedBorderService = res.BorderAuthorisationService
-                        return cachedBorderService
-                    end
-                end
+            if (name:find("grant") or name:find("entry") or name:find("accept") or name:find("authoris")) and not cachedGrantRemote then
+                cachedGrantRemote = desc
+                print("[ROCKET] Найден Grant Remote:", desc:GetFullName())
+            elseif (name:find("inspect") or name:find("secondary") or name:find("check")) and not cachedInspectRemote then
+                cachedInspectRemote = desc
+                print("[ROCKET] Найден Inspect Remote:", desc:GetFullName())
             end
         end
     end
-    return nil
+    return cachedGrantRemote, cachedInspectRemote
 end
 
 addConn(LP.CharacterAdded:Connect(function() task.delay(1.2, equipTool) end))
@@ -152,7 +141,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Clean)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Remote)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -296,17 +285,27 @@ local function runXP()
             equipTool()
             task.wait(0.1)
 
-            local BorderService = getBorderService()
+            local grantR, inspectR = findRemotes()
+            target:SetAttribute("LastStamped", os.clock())
 
-            if BorderService then
-                target:SetAttribute("LastStamped", os.clock())
-                if XP.CheckType == "Secondary" then
-                    pcall(function() BorderService:SendToInspection(target) end)
+            if XP.CheckType == "Secondary" then
+                if inspectR then
+                    pcall(function()
+                        if inspectR:IsA("RemoteEvent") then inspectR:FireServer(target) else inspectR:InvokeServer(target) end
+                    end)
+                    status.Text = "🟠 [Inspect]: " .. target.Name
                 else
-                    pcall(function() BorderService:GrantEntry(target) end)
+                    status.Text = "❌ INSPECT СОБЫТИЕ НЕ НАЙДЕНО!"
                 end
             else
-                status.Text = "❌ СЕРВИС НЕ НАЙДЕН!"
+                if grantR then
+                    pcall(function()
+                        if grantR:IsA("RemoteEvent") then grantR:FireServer(target) else grantR:InvokeServer(target) end
+                    end)
+                    status.Text = "🟢 [Grant]: " .. target.Name
+                else
+                    status.Text = "❌ GRANT СОБЫТИЕ НЕ НАЙДЕНО!"
+                end
             end
 
             processed[target] = os.clock()
@@ -318,7 +317,6 @@ local function runXP()
             local xpPerMin = math.floor(State.totalXP / elapsedMins)
             
             lblCounter.Text = string.format("📊 XP: %d | ⚡ %d XP/m", State.totalXP, xpPerMin)
-            status.Text = (isSec and "🟠 [Inspect]: " or "🟢 [Grant]: ") .. target.Name
         end
     else
         if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
@@ -358,7 +356,7 @@ btnRun.MouseButton1Click:Connect(function()
         
         task.spawn(function()
             equipTool()
-            getBorderService()
+            findRemotes() -- Ищем события при старте
             while not State.stop do
                 runXP()
                 task.wait(tonumber(xpDel.Text) or 0.5)
@@ -402,7 +400,7 @@ btnRun.MouseButton1Click:Connect(function()
                     hum.Health = 0
                     done += 1
                     State.totalDone += 1
-                    lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
+                    lblCounter.Text = "📊 ВСЕГО: ` .. State.totalDone
                     status.Text = "⚡ " .. i .. "/" .. resets
                     task.wait(0.8)
                 else
@@ -423,4 +421,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (Clean) загружен без ошибок!")
+print("🚀 ROCKET V2 (Remote Finder) успешно загружен!")
