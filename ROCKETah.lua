@@ -1,4 +1,4 @@
--- ROCKET • V2 (Remote Finder Edition)
+-- ROCKET • V2 (Fixed & Clean)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -81,7 +81,6 @@ local function safeTeleport(targetCF)
     root.CFrame, root.Anchored = targetCF, false
 end
 
--- Надежный поиск сетевых событий (RemoteEvent / RemoteFunction)
 local function findRemotes()
     if cachedGrantRemote and cachedInspectRemote then return cachedGrantRemote, cachedInspectRemote end
     for _, desc in ipairs(RS:GetDescendants()) do
@@ -89,10 +88,8 @@ local function findRemotes()
             local name = desc.Name:lower()
             if (name:find("grant") or name:find("entry") or name:find("accept") or name:find("authoris")) and not cachedGrantRemote then
                 cachedGrantRemote = desc
-                print("[ROCKET] Найден Grant Remote:", desc:GetFullName())
             elseif (name:find("inspect") or name:find("secondary") or name:find("check")) and not cachedInspectRemote then
                 cachedInspectRemote = desc
-                print("[ROCKET] Найден Inspect Remote:", desc:GetFullName())
             end
         end
     end
@@ -141,7 +138,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Remote)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -228,14 +225,8 @@ local function runXP()
     for p, t in pairs(processed) do if now - t > XP.BlacklistTime then processed[p] = nil end end
 
     local target, minD = nil, tonumber(xpMax.Text) or 90
-    
-    local playersToCheck = {}
     local civTeam = game.Teams:FindFirstChild("Civilian")
-    if civTeam then
-        playersToCheck = civTeam:GetPlayers()
-    else
-        playersToCheck = Players:GetPlayers()
-    end
+    local playersToCheck = civTeam and civTeam:GetPlayers() or Players:GetPlayers()
 
     for _, p in ipairs(playersToCheck) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and not processed[p] then
@@ -295,7 +286,7 @@ local function runXP()
                     end)
                     status.Text = "🟠 [Inspect]: " .. target.Name
                 else
-                    status.Text = "❌ INSPECT СОБЫТИЕ НЕ НАЙДЕНО!"
+                    status.Text = "❌ INSPECT НЕ НАЙДЕН!"
                 end
             else
                 if grantR then
@@ -304,7 +295,7 @@ local function runXP()
                     end)
                     status.Text = "🟢 [Grant]: " .. target.Name
                 else
-                    status.Text = "❌ GRANT СОБЫТИЕ НЕ НАЙДЕНО!"
+                    status.Text = "❌ GRANT НЕ НАЙДЕН!"
                 end
             end
 
@@ -329,21 +320,6 @@ local function runXP()
     end
 end
 
-task.spawn(function()
-    while true do
-        task.wait(0.4)
-        if State.isRunning and C.Mode == "XP" then
-            local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-            if root and root.Position.Y < -10 and XP.AutoReturn and XP.ReturnPos then
-                status.Text = "⚠️ ВОЗВРАТ НА ПОСТ..."
-                if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
-                safeTeleport(XP.ReturnPos)
-                task.wait(1)
-            end
-        end
-    end
-end)
-
 btnRun.MouseButton1Click:Connect(function()
     if State.isRunning then return end
     State.isRunning, State.stop = false, false
@@ -356,7 +332,7 @@ btnRun.MouseButton1Click:Connect(function()
         
         task.spawn(function()
             equipTool()
-            findRemotes() -- Ищем события при старте
+            findRemotes()
             while not State.stop do
                 runXP()
                 task.wait(tonumber(xpDel.Text) or 0.5)
@@ -400,7 +376,7 @@ btnRun.MouseButton1Click:Connect(function()
                     hum.Health = 0
                     done += 1
                     State.totalDone += 1
-                    lblCounter.Text = "📊 ВСЕГО: ` .. State.totalDone
+                    lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
                     status.Text = "⚡ " .. i .. "/" .. resets
                     task.wait(0.8)
                 else
@@ -421,4 +397,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (Remote Finder) успешно загружен!")
+print("🚀 ROCKET V2 успешно загружен без ошибок!")
