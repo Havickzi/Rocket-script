@@ -1,4 +1,4 @@
--- ROCKET • V2 (Debug Edition for Xeno)
+-- ROCKET • V2 (Fixed Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -47,12 +47,9 @@ end))
 
 local function equipTool()
     local char, bp = LP.Character, LP:FindFirstChild("Backpack")
-    if not char then print("[DEBUG] Персонаж не найден для экипировки инструмента") return nil end
+    if not char then return nil end
     local activeTool = char:FindFirstChildOfClass("Tool")
-    if activeTool then 
-        print("[DEBUG] Инструмент уже в руках:", activeTool.Name)
-        return activeTool 
-    end
+    if activeTool then return activeTool end
     if bp then
         local targetTool = bp:FindFirstChild("Stamp") or char:FindFirstChild("Stamp")
         if not targetTool then
@@ -62,11 +59,9 @@ local function equipTool()
         if targetTool and hum then
             pcall(function() hum:EquipTool(targetTool) end)
             task.wait(0.2)
-            print("[DEBUG] Взят инструмент из рюкзака:", targetTool.Name)
             return char:FindFirstChildOfClass("Tool")
         end
     end
-    print("[DEBUG] Инструмент 'Stamp' не найден в инвентаре!")
     return nil
 end
 
@@ -113,7 +108,7 @@ pcall(function() if gethui then local h = gethui(); if h then guiParent = h end 
 local gui = c("ScreenGui", { Name = "ROCKET_Opt", ResetOnSpawn = false, Parent = guiParent })
 getgenv().RocketGui = gui
 
-local main = c("Frame", { Size = UDim2.new(0, 350, 0, 395), Position = UDim2.new(0.5, -175, 0.5, -197), BackgroundColor3 = Color3.fromRGB(18, 15, 28), Visible = false, Parent = gui }, {
+local main = c("Frame", { Size = UDim2.new(0, 350, 0, 395), Position = UDim2.new(0.5, -175, 0.5, -197), BackgroundColor3 = Color3.fromRGB(18, 15, 28), Visible = true, Parent = gui }, {
     c("UICorner", { CornerRadius = UDim.new(0, 12) }), c("UIStroke", { Color = Color3.fromRGB(120, 80, 220), Thickness = 1.5 })
 })
 
@@ -127,7 +122,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Debug)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -208,21 +203,14 @@ modeBtn.MouseButton1Click:Connect(function() switchMode(C.Mode == "Resets" and "
 local function runXP()
     local char = LP.Character
     local hum, root = char and char:FindFirstChildOfClass("Humanoid"), char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then 
-        print("[DEBUG] Нет персонажа или HumanoidRootPart у локального игрока")
-        return 
-    end
+    if not hum or not root then return end
 
     local now = os.clock()
     for p, t in pairs(processed) do if now - t > XP.BlacklistTime then processed[p] = nil end end
 
     local target, minD = nil, tonumber(xpMax.Text) or 90
     local civTeam = game.Teams:FindFirstChild("Civilian")
-    
-    if not civTeam then
-        print("[DEBUG] Команда 'Civilian' не найдена в игре!")
-        return
-    end
+    if not civTeam then return end
 
     for _, p in ipairs(civTeam:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and not processed[p] then
@@ -235,7 +223,6 @@ local function runXP()
     end
 
     if target then
-        print("[DEBUG] Выбрана цель для обработки:", target.Name, "Дистанция:", minD)
         local tRoot = target.Character.HumanoidRootPart
         local stopD = tonumber(xpStop.Text) or 6
         
@@ -253,7 +240,6 @@ local function runXP()
             end
             
             if timedOut then
-                print("[DEBUG] Тайм-код движения к цели истек для:", target.Name)
                 processed[target] = os.clock()
                 status.Text = "⏳ ТАЙМАУТ: " .. target.Name
                 hum:MoveTo(root.Position)
@@ -271,28 +257,19 @@ local function runXP()
             equipTool()
             task.wait(0.1)
 
-            -- Прямой вызов защищенных функций игры из модуля Stamp с отладкой
             local success, Remotes = pcall(function()
                 return require(ReplicatedStorage:WaitForChild("SharedModules"):WaitForChild("Pronghorn"):WaitForChild("Remotes"))
             end)
-
-            print("[DEBUG] Модуль Remotes загружен успешно:", success)
 
             if success and Remotes and Remotes.Client and Remotes.Client.BorderAuthorisationService then
                 local BorderService = Remotes.Client.BorderAuthorisationService
                 target:SetAttribute("LastStamped", os.clock())
                 
                 if XP.CheckType == "Secondary" then
-                    print("[DEBUG] Вызов SendToInspection для игрока:", target.Name)
-                    local ok, err = pcall(function() BorderService:SendToInspection(target) end)
-                    print("[DEBUG] SendToInspection результат - Успех:", ok, "Ошибка:", err)
+                    pcall(function() BorderService:SendToInspection(target) end)
                 else
-                    print("[DEBUG] Вызов GrantEntry для игрока:", target.Name)
-                    local ok, err = pcall(function() BorderService:GrantEntry(target) end)
-                    print("[DEBUG] GrantEntry результат - Успех:", ok, "Ошибка:", err)
+                    pcall(function() BorderService:GrantEntry(target) end)
                 end
-            else
-                print("[DEBUG] ОШИБКА: Не удалось найти BorderAuthorisationService в модуле Remotes!")
             end
 
             processed[target] = os.clock()
@@ -376,7 +353,7 @@ btnRun.MouseButton1Click:Connect(function()
                 local myChar = LP.Character
                 if not myChar then break end
                 
-                let myRoot = myChar:FindFirstChild("HumanoidRootPart")
+                local myRoot = myChar:FindFirstChild("HumanoidRootPart") -- Исправлено с let на local
                 local hum = myChar:FindFirstChildOfClass("Humanoid")
                 local targetRoot = t and t.Character and t.Character:FindFirstChild("HumanoidRootPart")
 
@@ -408,4 +385,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (Debug Edition) загружен!")
+print("🚀 ROCKET V2 успешно загружен!")
