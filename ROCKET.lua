@@ -1,4 +1,4 @@
--- ROCKET • V2 (Xeno Fixed & Updated Edition)
+-- ROCKET • V2 (Xeno Context Fix Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -27,18 +27,6 @@ pcall(function()
             end
             return old(self, ...)
         end))
-    elseif getrawmetatable and setreadonly then
-        local gmt = getrawmetatable(game)
-        setreadonly(gmt, false)
-        local old = gmt.__namecall
-        gmt.__namecall = newcclosure(function(self, ...)
-            local m = getnamecallmethod and getnamecallmethod() or ""
-            if not checkcaller() and (m:lower() == "kick" or (m == "FireServer" or m == "InvokeServer") and string.match(self.Name:lower(), "cheat|ban|detect|log|flag")) then
-                return nil
-            end
-            return old(self, ...)
-        end)
-        setreadonly(gmt, true)
     end
 end)
 
@@ -59,8 +47,6 @@ local XP = {
 }
 local State = { isRunning = false, stop = false, target = nil, totalDone = 0, totalXP = 0, lastStampTime = 0, startTime = 0 }
 
-local succAuth, BorderAuth = pcall(function() return require(RS.SharedModules.BorderAuthorisationUtil) end)
-local succClient, Client = pcall(function() return require(RS.SharedModules.Pronghorn.Remotes).Client end)
 local processed, isSprinting = {}, false
 
 local function pressKey(key, state) pcall(function() VIM:SendKeyEvent(state, key, false, game) end) end
@@ -243,7 +229,7 @@ local function switchMode(m)
 end
 modeBtn.MouseButton1Click:Connect(function() switchMode(C.Mode == "Resets" and "XP" or "Resets") end)
 
--- XP ЛОГИКА (С ИСПРАВЛЕННОЙ ПРОВЕРКОЙ И КЛИКОМ)
+-- XP ЛОГИКА (БЕЗ ОШИБОЧНЫХ REQUIRE МОДУЛЕЙ)
 local function runXP()
     pcall(function()
         local char = LP.Character
@@ -259,17 +245,10 @@ local function runXP()
         if civTeam then
             for _, p in ipairs(civTeam:GetPlayers()) do
                 if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and not processed[p] then
-                    local hasAction = true
-                    if BorderAuth and BorderAuth.HasStampAction then
-                        hasAction = BorderAuth:HasStampAction(p)
-                    end
-                    
-                    if hasAction then
-                        local last = p:GetAttribute("LastStamped")
-                        if type(last) ~= "number" or now - last >= 3 then
-                            local d = (root.Position - p.Character.HumanoidRootPart.Position).Magnitude
-                            if d <= minD then minD, target = d, p end
-                        end
+                    local last = p:GetAttribute("LastStamped")
+                    if type(last) ~= "number" or now - last >= 3 then
+                        local d = (root.Position - p.Character.HumanoidRootPart.Position).Magnitude
+                        if d <= minD then minD, target = d, p end
                     end
                 end
             end
@@ -311,35 +290,22 @@ local function runXP()
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
                 target:SetAttribute("LastStamped", os.clock())
 
-                -- Достаем штамп в руки перед проверкой
+                -- Достаем штамп и активируем его напрямую через tool:Activate() или нажатие клавиш
                 equipStamp()
                 task.wait(0.05)
 
                 local isSec = XP.CheckType == "Secondary"
-                if isSec and BorderAuth and BorderAuth.CanSendToInspection then
-                    local succ, canInspect = pcall(function() return BorderAuth:CanSendToInspection(target) end)
-                    if succ and not canInspect then isSec = false end
+                local tool = char and char:FindFirstChild("Stamp")
+                
+                if tool and tool:IsA("Tool") then
+                    pcall(function() tool:Activate() end)
                 end
                 
-                -- Пытаемся отправить через игровой сервис, при сбое — нажимаем клавишу
-                local actionSuccess = false
-                if Client and Client.BorderAuthorisationService then
-                    local succCall = pcall(function()
-                        if isSec then 
-                            Client.BorderAuthorisationService:SendToInspection(target) 
-                        else 
-                            Client.BorderAuthorisationService:GrantEntry(target) 
-                        end
-                    end)
-                    if succCall then actionSuccess = true end
-                end
-                
-                if not actionSuccess then
-                    local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
-                    pressKey(key, true)
-                    task.wait(0.05)
-                    pressKey(key, false)
-                end
+                -- Дублируем нажатием клавиши для гарантии (F для вторичной, R для первичной)
+                local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
+                pressKey(key, true)
+                task.wait(0.05)
+                pressKey(key, false)
 
                 processed[target] = os.clock()
                 State.totalXP += (isSec and 25 or 20)
@@ -370,7 +336,7 @@ task.spawn(function()
         if State.isRunning and C.Mode == "XP" then
             local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
             if root and root.Position.Y < -10 and XP.AutoReturn and XP.ReturnPos then
-                status.Text = "⚠️ ПОД КАРТОЙ! ВОЗВРАТ..."
+                status.Text = "⚠️ ПОД КАЛТОЙ! ВОЗВРАТ..."
                 if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
                 safeTeleport(XP.ReturnPos)
                 task.wait(1)
@@ -456,4 +422,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 успешно загружен на Xeno!")
+print("🚀 ROCKET V2 успешно загружен на Xeno без ошибок контекста!")
