@@ -1,4 +1,4 @@
--- ROCKET • V2 (Pronghorn Native API Edition)
+-- ROCKET • V2 (Xeno & Pronghorn Native Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -11,7 +11,7 @@ end
 getgenv().RocketConns = {}
 local function addConn(conn) table.insert(getgenv().RocketConns, conn); return conn end
 
--- Подключаем родной сетевой клиент игры Pronghorn
+-- Подключаем сетевой клиент (если поддерживается инжектором)
 local PronghornClient = nil
 pcall(function()
     PronghornClient = require(ReplicatedStorage:WaitForChild("SharedModules"):WaitForChild("Pronghorn"):WaitForChild("Remotes")).Client
@@ -128,7 +128,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Xeno Fixed)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -263,25 +263,40 @@ local function runXP()
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
                 target:SetAttribute("LastStamped", os.clock())
 
-                -- Достаем штамп на всякий случай
+                -- Достаем штамп и даем 0.2 сек скрипту игры для генерации ProximityPrompt
                 equipTool()
-                task.wait(0.05)
+                task.wait(0.2)
 
-                -- Прямой вызов системных функций Pronghorn (работает всегда!)
-                local actionDone = false
-                if PronghornClient and PronghornClient.BorderAuthorisationService then
-                    pcall(function()
-                        if XP.CheckType == "Secondary" then
+                -- Адаптированный блок активации для Xeno
+                local isSec = XP.CheckType == "Secondary"
+                local targetKey = isSec and Enum.KeyCode.F or Enum.KeyCode.R
+
+                pcall(function()
+                    local promptFound = nil
+                    for _, desc in ipairs(tRoot:GetDescendants()) do
+                        if desc:IsA("ProximityPrompt") then
+                            promptFound = desc
+                            break
+                        end
+                    end
+
+                    if promptFound and fireproximityprompt then
+                        fireproximityprompt(promptFound)
+                    elseif PronghornClient and PronghornClient.BorderAuthorisationService then
+                        if isSec then
                             PronghornClient.BorderAuthorisationService:SendToInspection(target)
                         else
                             PronghornClient.BorderAuthorisationService:GrantEntry(target)
                         end
-                        actionDone = true
-                    end)
-                end
+                    else
+                        -- Эмуляция зажатия физической клавиши (0.3 сек задержки)
+                        pressKey(targetKey, true)
+                        task.wait(0.3)
+                        pressKey(targetKey, false)
+                    end
+                end)
 
                 processed[target] = os.clock()
-                local isSec = XP.CheckType == "Secondary"
                 State.totalXP += (isSec and 25 or 20)
                 State.lastStampTime = os.clock()
                 
@@ -394,4 +409,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (Pronghorn Native) успешно загружен!")
+print("🚀 ROCKET V2 (Xeno Fixed) успешно загружен!")
