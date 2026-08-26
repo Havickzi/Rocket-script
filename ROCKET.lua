@@ -1,4 +1,4 @@
--- ROCKET • V2 (RemoteEvent & Stamp Fix Edition)
+-- ROCKET • V2 (Pronghorn Native API Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -10,6 +10,12 @@ if getgenv().RocketConns and type(getgenv().RocketConns) == "table" then
 end
 getgenv().RocketConns = {}
 local function addConn(conn) table.insert(getgenv().RocketConns, conn); return conn end
+
+-- Подключаем родной сетевой клиент игры Pronghorn
+local PronghornClient = nil
+pcall(function()
+    PronghornClient = require(ReplicatedStorage:WaitForChild("SharedModules"):WaitForChild("Pronghorn"):WaitForChild("Remotes")).Client
+end)
 
 pcall(function()
     if hookmetamethod then
@@ -36,7 +42,6 @@ local processed, isSprinting = {}, false
 local function pressKey(key, state) pcall(function() VIM:SendKeyEvent(state, key, false, game) end) end
 local function releaseKeys()
     if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
-    pressKey(Enum.KeyCode.R, false); pressKey(Enum.KeyCode.F, false)
 end
 
 addConn(LP.Idled:Connect(function()
@@ -158,8 +163,8 @@ local function refreshList()
     list.CanvasSize = UDim2.new(0,0,0,y)
 end
 
-local btnPrimary = c("TextButton", { Size = UDim2.new(0.44, 0, 0, 24), Position = UDim2.new(0.05, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(45,40,60), Text = "🟢 ПЕРВИЧНАЯ [R]", TextColor3 = Color3.fromRGB(160,160,180), Font = Enum.Font.GothamBold, TextSize = 9, Parent = xpHolder }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
-local btnSecondary = c("TextButton", { Size = UDim2.new(0.44, 0, 0, 24), Position = UDim2.new(0.51, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(220,120,0), Text = "🟠 ВТОРИЧНАЯ [F]", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = xpHolder }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
+local btnPrimary = c("TextButton", { Size = UDim2.new(0.44, 0, 0, 24), Position = UDim2.new(0.05, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(45,40,60), Text = "🟢 GRANT [R]", TextColor3 = Color3.fromRGB(160,160,180), Font = Enum.Font.GothamBold, TextSize = 9, Parent = xpHolder }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
+local btnSecondary = c("TextButton", { Size = UDim2.new(0.44, 0, 0, 24), Position = UDim2.new(0.51, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(220,120,0), Text = "🟠 INSPECT [F]", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = xpHolder }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local function setCheck(t)
     XP.CheckType = t
@@ -258,34 +263,25 @@ local function runXP()
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
                 target:SetAttribute("LastStamped", os.clock())
 
-                local activeTool = equipTool()
-                task.wait(0.1)
+                -- Достаем штамп на всякий случай
+                equipTool()
+                task.wait(0.05)
 
+                -- Прямой вызов системных функций Pronghorn (работает всегда!)
                 local actionDone = false
-                if activeTool then
-                    for _, desc in ipairs(activeTool:GetDescendants()) do
-                        if desc:IsA("RemoteEvent") then
-                            pcall(function() desc:FireServer(target); actionDone = true end)
-                        end
-                    end
-                end
-
-                if not actionDone and activeTool then
+                if PronghornClient and PronghornClient.BorderAuthorisationService then
                     pcall(function()
-                        activeTool:Activate()
-                        VIM:SendMouseButtonEvent(400, 300, 0, true, game, 0)
-                        task.wait(0.05)
-                        VIM:SendMouseButtonEvent(400, 300, 0, false, game, 0)
+                        if XP.CheckType == "Secondary" then
+                            PronghornClient.BorderAuthorisationService:SendToInspection(target)
+                        else
+                            PronghornClient.BorderAuthorisationService:GrantEntry(target)
+                        end
+                        actionDone = true
                     end)
                 end
 
-                local isSec = XP.CheckType == "Secondary"
-                local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
-                pressKey(key, true)
-                task.wait(0.05)
-                pressKey(key, false)
-
                 processed[target] = os.clock()
+                local isSec = XP.CheckType == "Secondary"
                 State.totalXP += (isSec and 25 or 20)
                 State.lastStampTime = os.clock()
                 
@@ -293,7 +289,7 @@ local function runXP()
                 local xpPerMin = math.floor(State.totalXP / elapsedMins)
                 
                 lblCounter.Text = string.format("📊 XP: %d | ⚡ %d XP/m", State.totalXP, xpPerMin)
-                status.Text = (isSec and "🟠 [F]: " or "🟢 [R]: ") .. target.Name
+                status.Text = (isSec and "🟠 [Inspect]: " or "🟢 [Grant]: ") .. target.Name
             end
         else
             if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
@@ -363,7 +359,7 @@ btnRun.MouseButton1Click:Connect(function()
             local done = 0
             for i = 1, resets do
                 if State.stop then break end
-                local myChar = getChar(10)
+                local myChar = LP.Character
                 if not myChar then break end
                 
                 local myRoot = myChar:FindFirstChild("HumanoidRootPart")
@@ -398,4 +394,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 с обходом активации штампа загружен!")
+print("🚀 ROCKET V2 (Pronghorn Native) успешно загружен!")
