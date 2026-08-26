@@ -1,4 +1,4 @@
--- ROCKET • V2 (Xeno & Pronghorn Native Edition)
+-- ROCKET • V2 (ProximityPrompt & Key Press Edition)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -10,12 +10,6 @@ if getgenv().RocketConns and type(getgenv().RocketConns) == "table" then
 end
 getgenv().RocketConns = {}
 local function addConn(conn) table.insert(getgenv().RocketConns, conn); return conn end
-
--- Подключаем сетевой клиент (если поддерживается инжектором)
-local PronghornClient = nil
-pcall(function()
-    PronghornClient = require(ReplicatedStorage:WaitForChild("SharedModules"):WaitForChild("Pronghorn"):WaitForChild("Remotes")).Client
-end)
 
 pcall(function()
     if hookmetamethod then
@@ -128,7 +122,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Xeno Fixed)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -263,40 +257,40 @@ local function runXP()
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
                 target:SetAttribute("LastStamped", os.clock())
 
-                -- Достаем штамп и даем 0.2 сек скрипту игры для генерации ProximityPrompt
+                -- Достаем штамп
                 equipTool()
-                task.wait(0.2)
+                task.wait(0.1)
 
-                -- Адаптированный блок активации для Xeno
-                local isSec = XP.CheckType == "Secondary"
-                local targetKey = isSec and Enum.KeyCode.F or Enum.KeyCode.R
-
+                -- Простая и надежная система: ищем ProximityPrompt на персонаже игрока и вызываем его напрямую
+                local triggered = false
                 pcall(function()
-                    local promptFound = nil
-                    for _, desc in ipairs(tRoot:GetDescendants()) do
+                    for _, desc in ipairs(target.Character:GetDescendants()) do
                         if desc:IsA("ProximityPrompt") then
-                            promptFound = desc
-                            break
+                            local text = desc.ActionText:lower()
+                            if XP.CheckType == "Secondary" and (text:find("inspection") or desc.KeyboardKeyCode == Enum.KeyCode.F) then
+                                fireproximityprompt(desc)
+                                triggered = true
+                                break
+                            elseif XP.CheckType == "Primary" and (text:find("entry") or desc.KeyboardKeyCode == Enum.KeyCode.R) then
+                                fireproximityprompt(desc)
+                                triggered = true
+                                break
+                            end
                         end
-                    end
-
-                    if promptFound and fireproximityprompt then
-                        fireproximityprompt(promptFound)
-                    elseif PronghornClient and PronghornClient.BorderAuthorisationService then
-                        if isSec then
-                            PronghornClient.BorderAuthorisationService:SendToInspection(target)
-                        else
-                            PronghornClient.BorderAuthorisationService:GrantEntry(target)
-                        end
-                    else
-                        -- Эмуляция зажатия физической клавиши (0.3 сек задержки)
-                        pressKey(targetKey, true)
-                        task.wait(0.3)
-                        pressKey(targetKey, false)
                     end
                 end)
 
+                -- Если промпт не нашелся через fireproximityprompt, дублируем физическим нажатием кнопки клавиатуры
+                if not triggered then
+                    local isSec = XP.CheckType == "Secondary"
+                    local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
+                    pressKey(key, true)
+                    task.wait(0.05)
+                    pressKey(key, false)
+                end
+
                 processed[target] = os.clock()
+                local isSec = XP.CheckType == "Secondary"
                 State.totalXP += (isSec and 25 or 20)
                 State.lastStampTime = os.clock()
                 
@@ -389,7 +383,7 @@ btnRun.MouseButton1Click:Connect(function()
                     done += 1
                     State.totalDone += 1
                     lblCounter.Text = "📊 ВСЕГО: " .. State.totalDone
-                    status.Text = "⚡ " .. i .. "/" .. resets
+                    status.Text = "⚡ " + i + "/" + resets
                     task.wait(0.8)
                 else
                     task.wait(1)
@@ -409,4 +403,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (Xeno Fixed) успешно загружен!")
+print("🚀 ROCKET V2 (ProximityPrompt Edition) загружен!")
