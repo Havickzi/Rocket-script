@@ -1,4 +1,4 @@
--- ROCKET • V2 (ProximityPrompt & Key Press Edition)
+-- ROCKET • V2 (Direct Remote Edition for Xeno)
 local Players, UIS, RS, VIM, Run = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("VirtualInputManager"), game:GetService("RunService")
 local LP = Players.LocalPlayer
 
@@ -122,7 +122,7 @@ addConn(UIS.InputChanged:Connect(function(i) if dragging and i.UserInputType == 
 addConn(UIS.InputEnded:Connect(function() dragging = false end))
 
 local header = c("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Parent = main })
-c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
+c("TextLabel", { Size = UDim2.new(1, -110, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "🚀 ROCKET • V2 (Direct)", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, Parent = header })
 local modeBtn = c("TextButton", { Size = UDim2.new(0, 95, 0, 24), Position = UDim2.new(1, -105, 0, 4), BackgroundColor3 = Color3.fromRGB(60, 40, 120), Text = "🔄 РЕЖИМ", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 9, Parent = header }, { c("UICorner", { CornerRadius = UDim.new(0, 5) }) })
 
 local resHolder = c("Frame", { Size = UDim2.new(1, 0, 0, 255), Position = UDim2.new(0, 0, 0, 35), BackgroundTransparency = 1, Parent = main })
@@ -255,38 +255,24 @@ local function runXP()
             if not State.stop and tRoot and tRoot.Parent then
                 if isSprinting then isSprinting = false; pressKey(Enum.KeyCode.LeftShift, false) end
                 root.CFrame = CFrame.new(root.Position, Vector3.new(tRoot.Position.X, tRoot.Position.Y, tRoot.Position.Z))
-                target:SetAttribute("LastStamped", os.clock())
-
-                -- Достаем штамп
+                
                 equipTool()
                 task.wait(0.1)
 
-                -- Простая и надежная система: ищем ProximityPrompt на персонаже игрока и вызываем его напрямую
-                local triggered = false
-                pcall(function()
-                    for _, desc in ipairs(target.Character:GetDescendants()) do
-                        if desc:IsA("ProximityPrompt") then
-                            local text = desc.ActionText:lower()
-                            if XP.CheckType == "Secondary" and (text:find("inspection") or desc.KeyboardKeyCode == Enum.KeyCode.F) then
-                                fireproximityprompt(desc)
-                                triggered = true
-                                break
-                            elseif XP.CheckType == "Primary" and (text:find("entry") or desc.KeyboardKeyCode == Enum.KeyCode.R) then
-                                fireproximityprompt(desc)
-                                triggered = true
-                                break
-                            end
-                        end
-                    end
+                -- Прямой вызов защищенных функций игры из модуля Stamp
+                local success, Remotes = pcall(function()
+                    return require(ReplicatedStorage:WaitForChild("SharedModules"):WaitForChild("Pronghorn"):WaitForChild("Remotes"))
                 end)
 
-                -- Если промпт не нашелся через fireproximityprompt, дублируем физическим нажатием кнопки клавиатуры
-                if not triggered then
-                    local isSec = XP.CheckType == "Secondary"
-                    local key = isSec and Enum.KeyCode.F or Enum.KeyCode.R
-                    pressKey(key, true)
-                    task.wait(0.05)
-                    pressKey(key, false)
+                if success and Remotes and Remotes.Client and Remotes.Client.BorderAuthorisationService then
+                    local BorderService = Remotes.Client.BorderAuthorisationService
+                    target:SetAttribute("LastStamped", os.clock())
+                    
+                    if XP.CheckType == "Secondary" then
+                        pcall(function() BorderService:SendToInspection(target) end)
+                    else
+                        pcall(function() BorderService:GrantEntry(target) end)
+                    end
                 end
 
                 processed[target] = os.clock()
@@ -403,4 +389,4 @@ btnRef.MouseButton1Click:Connect(refreshList)
 switchMode(C.Mode)
 setCheck(XP.CheckType)
 refreshList()
-print("🚀 ROCKET V2 (ProximityPrompt Edition) загружен!")
+print("🚀 ROCKET V2 (Direct Remote Edition) загружен!")
