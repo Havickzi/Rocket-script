@@ -27,16 +27,7 @@ local Window=nil
 local currentLang="EN"
 local executorCheckCaller=typeof(checkcaller)=="function" and checkcaller or function() return false end
 local safeNewCClosure=typeof(newcclosure)=="function" and newcclosure or function(fn) return fn end
-local V=game:GetService( "ProximityPromptService" )pcall(function(...) V.PromptButtonHoldBegan :Connect(function(e,...) pcall(function(...)
-            if typeof(fireproximityprompt)== "function" then
-                fireproximityprompt(e)
-            end
-        end
-        )
-    end
-    )
-end
-)
+-PromptButtonHoldBeganh disabled
 local PlayerGui = o:WaitForChild("PlayerGui")
 local Camera = r.CurrentCamera
 
@@ -148,22 +139,6 @@ local function Notify(title, message, duration)
     end)
 end
 
--- Hook Proximity Prompts Globally
-local function HookPrompt(prompt)
-    if prompt:IsA("ProximityPrompt") then
-        prompt.HoldDuration = 0
-        prompt.MaxActivationDistance = 50
-    end
-end
-
-for _, descendant in ipairs(r:GetDescendants()) do
-    HookPrompt(descendant)
-end
-
-table.insert(connections, r.DescendantAdded:Connect(function(descendant)
-    HookPrompt(descendant)
-end))
-
 -- Main Window Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -244,11 +219,8 @@ CloseButton.MouseLeave:Connect(function()
 end)
 
 CloseButton.MouseButton1Click:Connect(function()
-    local twOpen = u:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, 620, 0, 420), BackgroundTransparency = 1})
-    twOpen:Play()
-    twOpen.Completed:Connect(function()
-        ScreenGui:Destroy()
-    end)
+    MainFrame.Visible = false
+    if FloatBtn then FloatBtn.Visible = true end
 end)
 
 local HeaderDivider = Instance.new("Frame")
@@ -1128,16 +1100,6 @@ local Window=nil
 local currentLang="EN"
 local executorCheckCaller=typeof(checkcaller)=="function" and checkcaller or function() return false end
 local safeNewCClosure=typeof(newcclosure)=="function" and newcclosure or function(fn) return fn end
-local V=game:GetService( "ProximityPromptService" )pcall(function(...) V.PromptButtonHoldBegan :Connect(function(e,...) pcall(function(...)
-            if typeof(fireproximityprompt)== "function" then
-                fireproximityprompt(e)
-            end
-        end
-        )
-    end
-    )
-end
-)
 local H=function(...)
 end
 local t=function(...)
@@ -1870,26 +1832,7 @@ H4=function(e,...)
         )
     end
 end
-if typeof(hookmetamethod)== "function" and not _G._DesyncAntiRagdollHooked then
-    _G._DesyncAntiRagdollHooked = true
-    local e e=hookmetamethod(game, "__newindex" ,safeNewCClosure(function(r,y,u,...)
-        if not executorCheckCaller()and typeof(r)== "Instance" then
-            if r:IsA( "Motor6D" )and(y== "Enabled" and u== false )then
-                return nil
-            end
-            if r:IsA( "Humanoid" )then
-                if y== "PlatformStand" and u== true then
-                    return nil
-                end
-                if y== "Sit" and(u== true and((h.pureTweenFarm or h.autoFarmLoop or h.isReturning or h.glidingToTarget )))then
-                    return nil
-                end
-            end
-        end
-        return e(r,y,u)
-    end
-    ))
-end
+-- hookmetamethod disabled (Byfron trigger)
 S4=function(e,...) e=e or o.Character
     if not e then
         return
@@ -5349,3 +5292,87 @@ AddButton(settingsPage, "Unload Script", "Completely terminate all farm loops an
 end)
 
 
+-- ==========================================
+-- Кнопка Hide/Show Menu (перетаскиваемая)
+-- ==========================================
+
+local ToggleMenuBtn = Instance.new("TextButton")
+ToggleMenuBtn.Name = "ToggleMenuBtn"
+ToggleMenuBtn.Size = UDim2.new(0, 52, 0, 52)
+ToggleMenuBtn.Position = UDim2.new(0, 20, 0.5, -26)
+ToggleMenuBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+ToggleMenuBtn.BorderSizePixel = 0
+ToggleMenuBtn.AutoButtonColor = false
+ToggleMenuBtn.Text = "FH"
+ToggleMenuBtn.Font = Enum.Font.GothamBold
+ToggleMenuBtn.TextSize = 16
+ToggleMenuBtn.TextColor3 = Color3.fromRGB(0, 229, 255)
+ToggleMenuBtn.Active = true
+ToggleMenuBtn.Visible = false
+ToggleMenuBtn.Parent = ScreenGui
+
+local TMCorner = Instance.new("UICorner")
+TMCorner.CornerRadius = UDim.new(1, 0)
+TMCorner.Parent = ToggleMenuBtn
+
+local TMStroke = Instance.new("UIStroke")
+TMStroke.Color = Color3.fromRGB(138, 43, 226)
+TMStroke.Thickness = 2
+TMStroke.Parent = ToggleMenuBtn
+
+local TMGradient = Instance.new("UIGradient")
+TMGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(138, 43, 226)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 229, 255)),
+})
+TMGradient.Parent = TMStroke
+
+-- Переключение меню
+local tmDragging = false
+local tmStartPos = nil
+local tmStartPosBtn = nil
+local tmMoved = false
+
+ToggleMenuBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        tmDragging = true
+        tmMoved = false
+        tmStartPos = input.Position
+        tmStartPosBtn = ToggleMenuBtn.Position
+    end
+end)
+
+ToggleMenuBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        tmDragging = false
+        if not tmMoved then
+            MainFrame.Visible = true
+            ToggleMenuBtn.Visible = false
+        end
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if tmDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - tmStartPos
+        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
+            tmMoved = true
+        end
+        ToggleMenuBtn.Position = UDim2.new(
+            tmStartPosBtn.X.Scale, tmStartPosBtn.X.Offset + delta.X,
+            tmStartPosBtn.Y.Scale, tmStartPosBtn.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- Автоматически показываем кнопку когда меню скрыто
+MainFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+    if MainFrame.Visible then
+        ToggleMenuBtn.Visible = false
+    else
+        ToggleMenuBtn.Visible = true
+    end
+end)
