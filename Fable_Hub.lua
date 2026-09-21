@@ -27,7 +27,7 @@ local Window=nil
 local currentLang="EN"
 local executorCheckCaller=typeof(checkcaller)=="function" and checkcaller or function() return false end
 local safeNewCClosure=typeof(newcclosure)=="function" and newcclosure or function(fn) return fn end
--PromptButtonHoldBeganh disabled
+--PromptButtonHoldBeganh disabled
 local PlayerGui = o:WaitForChild("PlayerGui")
 local Camera = r.CurrentCamera
 
