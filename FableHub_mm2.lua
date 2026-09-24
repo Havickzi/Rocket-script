@@ -1,10 +1,8 @@
 --[[
-    FABLE HUB MM2 v1.9.3 (Anti-Kick + Coin ESP + Silent Aim с исправленным FOV-кругом)
+    FABLE HUB MM2 v1.9.4 (Anti-Kick + Coin ESP + Silent Aim + Telegram Link)
     Murder Mystery 2 Cheat Script
-    Fix:
-    - Убран двойной сдвиг FOV-круга (AnchorPoint + Position)
-    - ScreenGui.IgnoreGuiInset = true → 0.5,0.5 = реальный центр
-    - Компенсация позиции GUI
+    New:
+    - Кнопка перехода в Telegram-канал @Fable_Hub во вкладке "Настройки"
 --]]
 
 if game.PlaceId ~= 142823291 then
@@ -19,12 +17,13 @@ local TweenService      = game:GetService("TweenService")
 local Lighting          = game:GetService("Lighting")
 local CoreGui           = game:GetService("CoreGui")
 local CollectionService = game:GetService("CollectionService")
+local GuiService        = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
 local CFG = {
-    Version     = "v1.9.3",
+    Version     = "v1.9.4",
     Accent1     = Color3.fromRGB(139, 92, 246),
     Accent2     = Color3.fromRGB(217, 70, 239),
     Accent3     = Color3.fromRGB(99, 102, 241),
@@ -46,6 +45,8 @@ local CFG = {
     CoinESPColor   = Color3.fromRGB(255, 215, 0),
     SilentAimFOV   = 120,
     SilentAimTarget = "Murderer",
+    TelegramURL    = "https://t.me/Fable_Hub",
+    TelegramHandle = "@Fable_Hub",
 }
 
 local State = {
@@ -282,7 +283,7 @@ local ScreenGui = New("ScreenGui", {
     Name = "FableHubMM2",
     ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    IgnoreGuiInset = true,   -- ✅ теперь 0.5,0.5 = реальный центр экрана
+    IgnoreGuiInset = true,
     DisplayOrder = 999,
     Parent = parentGui,
 })
@@ -479,6 +480,8 @@ local ToggleBtn = New("TextButton", {
 Corner(ToggleBtn, UDim.new(0, 14))
 Gradient(ToggleBtn)
 Stroke(ToggleBtn, Color3.fromRGB(255, 255, 255), 1.5, 0.5)
+
+local btnDragActive = false
 
 ToggleBtn.MouseEnter:Connect(function()
     Tw(ToggleBtn, 0.15, { Size = UDim2.new(0, 60, 0, 60) }, Enum.EasingStyle.Back)
@@ -714,6 +717,140 @@ New("TextLabel", {
     Position = UDim2.new(0.5, 0, 0, 0), Parent = StatusBar, ZIndex = 4,
 })
 
+-- ═══════════════════════ COIN ESP (объявлено заранее) ═══════════════════════
+local coinESP_Highlights = {}
+
+local function ClearCoinESP()
+    for _, h in ipairs(coinESP_Highlights) do
+        pcall(function() h:Destroy() end)
+    end
+    coinESP_Highlights = {}
+end
+
+local function UpdateCoinESP()
+    if not State.coinESP then return end
+    ClearCoinESP()
+
+    local tagged = CollectionService:GetTagged("ServerCoinPart")
+    for _, obj in ipairs(tagged) do
+        if obj and obj.Parent and obj:IsA("BasePart") then
+            local h = Instance.new("Highlight")
+            h.Name = "FH_CoinESP"
+            h.Adornee = obj
+            h.FillColor = CFG.CoinESPColor
+            h.OutlineColor = Color3.fromRGB(255, 255, 255)
+            h.FillTransparency = 0.35
+            h.OutlineTransparency = 0.1
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            h.Parent = ScreenGui
+            table.insert(coinESP_Highlights, h)
+        end
+    end
+end
+
+-- ═══════════════════════ SILENT AIM (объявлено заранее) ═══════════════════════
+local silentAimCircle = nil
+
+local function CreateFOVCircle()
+    if silentAimCircle and silentAimCircle.Parent then return silentAimCircle end
+
+    local circle = New("Frame", {
+        Name = "FH_FOVCircle",
+        Size = UDim2.new(0, CFG.SilentAimFOV * 2, 0, CFG.SilentAimFOV * 2),
+        Position = UDim2.new(0.5, -CFG.SilentAimFOV, 0.5, -CFG.SilentAimFOV),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Visible = false,
+        ZIndex = 999,
+        Parent = ScreenGui,
+    })
+    Corner(circle, UDim.new(1, 0))
+    Stroke(circle, CFG.Accent2, 2, 0.2)
+
+    local dot = New("Frame", {
+        Name = "CenterDot",
+        Size = UDim2.new(0, 4, 0, 4),
+        Position = UDim2.new(0.5, -2, 0.5, -2),
+        BackgroundColor3 = CFG.Accent2,
+        BorderSizePixel = 0,
+        ZIndex = 1000,
+        Parent = circle,
+    })
+    Corner(dot, UDim.new(1, 0))
+
+    silentAimCircle = circle
+    return circle
+end
+
+local function UpdateFOVCircle()
+    if not silentAimCircle or not silentAimCircle.Parent then return end
+    silentAimCircle.Size = UDim2.new(0, CFG.SilentAimFOV * 2, 0, CFG.SilentAimFOV * 2)
+    silentAimCircle.Position = UDim2.new(0.5, -CFG.SilentAimFOV, 0.5, -CFG.SilentAimFOV)
+end
+
+local function FindSilentAimTarget()
+    local cam = workspace.CurrentCamera
+    if not cam then return nil end
+
+    local screenCenter = cam.ViewportSize / 2
+    local bestTarget = nil
+    local bestScore = math.huge
+    local fovPixels = CFG.SilentAimFOV
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            if hrp and hum and hum.Health > 0 then
+                local role = "Innocent"
+                if player.Character:FindFirstChild("Knife") or (player.Backpack and player.Backpack:FindFirstChild("Knife")) then
+                    role = "Murderer"
+                elseif player.Character:FindFirstChild("Gun") or (player.Backpack and player.Backpack:FindFirstChild("Gun")) then
+                    role = "Sheriff"
+                end
+
+                local valid = false
+                if CFG.SilentAimTarget == "Murderer" and role == "Murderer" then valid = true end
+                if CFG.SilentAimTarget == "Sheriff" and role == "Sheriff" then valid = true end
+                if CFG.SilentAimTarget == "Nearest" then valid = true end
+
+                if valid then
+                    local screenPos, onScreen = cam:WorldToViewportPoint(hrp.Position)
+
+                    if onScreen and screenPos.Z > 0 then
+                        local dx = screenPos.X - screenCenter.X
+                        local dy = screenPos.Y - screenCenter.Y
+                        local dist2D = math.sqrt(dx*dx + dy*dy)
+
+                        if dist2D < fovPixels then
+                            if dist2D < bestScore then
+                                bestScore = dist2D
+                                bestTarget = hrp
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return bestTarget
+end
+
+local function ApplySilentAim()
+    if not State.silentAim then return end
+    local target = FindSilentAimTarget()
+    if not target then return end
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    local originalCF = cam.CFrame
+    local aimCF = CFrame.new(cam.CFrame.Position, target.Position)
+    cam.CFrame = aimCF
+    RunService.RenderStepped:Wait()
+    cam.CFrame = originalCF
+end
+
+-- ═══════════════════════ MAIN TAB ═══════════════════════
 Section(MainTab, "Авто-фарм")
 Toggle(MainTab, "coin", "Auto Farm монет (Anti-Kick)", false, function(s)
     State.autoFarm = s
@@ -802,37 +939,7 @@ end
 
 RunService.Stepped:Connect(ApplyNoclip)
 
--- ═══════════════════════ COIN ESP ═══════════════════════
-local coinESP_Highlights = {}
-
-local function ClearCoinESP()
-    for _, h in ipairs(coinESP_Highlights) do
-        pcall(function() h:Destroy() end)
-    end
-    coinESP_Highlights = {}
-end
-
-local function UpdateCoinESP()
-    if not State.coinESP then return end
-    ClearCoinESP()
-
-    local tagged = CollectionService:GetTagged("ServerCoinPart")
-    for _, obj in ipairs(tagged) do
-        if obj and obj.Parent and obj:IsA("BasePart") then
-            local h = Instance.new("Highlight")
-            h.Name = "FH_CoinESP"
-            h.Adornee = obj
-            h.FillColor = CFG.CoinESPColor
-            h.OutlineColor = Color3.fromRGB(255, 255, 255)
-            h.FillTransparency = 0.35
-            h.OutlineTransparency = 0.1
-            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            h.Parent = ScreenGui
-            table.insert(coinESP_Highlights, h)
-        end
-    end
-end
-
+-- ═══════════════════════ COIN ESP LOOP ═══════════════════════
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -840,116 +947,7 @@ task.spawn(function()
     end
 end)
 
--- ═══════════════════════ SILENT AIM ═══════════════════════
-local silentAimCircle = nil
-
-local function CreateFOVCircle()
-    if silentAimCircle and silentAimCircle.Parent then return silentAimCircle end
-
-    -- ✅ убран AnchorPoint — используется чистое Position со смещением
-    local circle = New("Frame", {
-        Name = "FH_FOVCircle",
-        Size = UDim2.new(0, CFG.SilentAimFOV * 2, 0, CFG.SilentAimFOV * 2),
-        Position = UDim2.new(0.5, -CFG.SilentAimFOV, 0.5, -CFG.SilentAimFOV),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Visible = false,
-        ZIndex = 999,
-        Parent = ScreenGui,
-    })
-    Corner(circle, UDim.new(1, 0))
-    Stroke(circle, CFG.Accent2, 2, 0.2)
-
-    -- центр круга = маленькая точка
-    local dot = New("Frame", {
-        Name = "CenterDot",
-        Size = UDim2.new(0, 4, 0, 4),
-        Position = UDim2.new(0.5, -2, 0.5, -2),
-        BackgroundColor3 = CFG.Accent2,
-        BorderSizePixel = 0,
-        ZIndex = 1000,
-        Parent = circle,
-    })
-    Corner(dot, UDim.new(1, 0))
-
-    silentAimCircle = circle
-    return circle
-end
-
-local function UpdateFOVCircle()
-    if not silentAimCircle or not silentAimCircle.Parent then return end
-
-    silentAimCircle.Size = UDim2.new(0, CFG.SilentAimFOV * 2, 0, CFG.SilentAimFOV * 2)
-    silentAimCircle.Position = UDim2.new(0.5, -CFG.SilentAimFOV, 0.5, -CFG.SilentAimFOV)
-end
-
-local function FindSilentAimTarget()
-    local cam = workspace.CurrentCamera
-    if not cam then return nil end
-
-    local screenCenter = cam.ViewportSize / 2
-    local bestTarget = nil
-    local bestScore = math.huge
-    local fovPixels = CFG.SilentAimFOV
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            if hrp and hum and hum.Health > 0 then
-                local role = "Innocent"
-                if player.Character:FindFirstChild("Knife") or (player.Backpack and player.Backpack:FindFirstChild("Knife")) then
-                    role = "Murderer"
-                elseif player.Character:FindFirstChild("Gun") or (player.Backpack and player.Backpack:FindFirstChild("Gun")) then
-                    role = "Sheriff"
-                end
-
-                local valid = false
-                if CFG.SilentAimTarget == "Murderer" and role == "Murderer" then valid = true end
-                if CFG.SilentAimTarget == "Sheriff" and role == "Sheriff" then valid = true end
-                if CFG.SilentAimTarget == "Nearest" then valid = true end
-
-                if valid then
-                    local screenPos, onScreen = cam:WorldToViewportPoint(hrp.Position)
-
-                    if onScreen and screenPos.Z > 0 then
-                        local dx = screenPos.X - screenCenter.X
-                        local dy = screenPos.Y - screenCenter.Y
-                        local dist2D = math.sqrt(dx*dx + dy*dy)
-
-                        if dist2D < fovPixels then
-                            if dist2D < bestScore then
-                                bestScore = dist2D
-                                bestTarget = hrp
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    return bestTarget
-end
-
-local function ApplySilentAim()
-    if not State.silentAim then return end
-
-    local target = FindSilentAimTarget()
-    if not target then return end
-
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-
-    local originalCF = cam.CFrame
-    local aimCF = CFrame.new(cam.CFrame.Position, target.Position)
-    cam.CFrame = aimCF
-
-    RunService.RenderStepped:Wait()
-
-    cam.CFrame = originalCF
-end
-
+-- ═══════════════════════ SILENT AIM INPUT + LOOP ═══════════════════════
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if not State.silentAim then return end
@@ -1369,6 +1367,105 @@ New("TextLabel", {
     Position = UDim2.new(0, 12, 0, 30), Parent = infoCard,
 })
 
+-- ═══════════════════════ TELEGRAM LINK ═══════════════════════
+Section(SettingsTab, "Сообщество")
+
+local tgBtn = New("TextButton", {
+    Text = "", BackgroundColor3 = CFG.BgPanel,
+    BackgroundTransparency = 0.2, BorderSizePixel = 0,
+    Size = UDim2.new(1, 0, 0, 40), AutoButtonColor = false,
+    Parent = SettingsTab,
+})
+Corner(tgBtn, UDim.new(0, 12))
+local tgStroke = Stroke(tgBtn, CFG.Accent2, 1, 0.6)
+
+local tgIconHolder = New("Frame", {
+    Size = UDim2.new(0, 28, 0, 28),
+    Position = UDim2.new(0, 8, 0.5, -14),
+    BackgroundColor3 = CFG.Accent2,
+    BackgroundTransparency = 0.82,
+    BorderSizePixel = 0, Parent = tgBtn,
+})
+Corner(tgIconHolder, UDim.new(0, 8))
+
+local tgArrow = New("Frame", {
+    Size = UDim2.new(0, 14, 0, 14),
+    Position = UDim2.new(0.5, -7, 0.5, -7),
+    BackgroundTransparency = 1, Parent = tgIconHolder,
+})
+New("Frame", {
+    Size = UDim2.new(0, 14, 0, 3),
+    Position = UDim2.new(0, 0, 0.5, -1.5),
+    BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
+    Rotation = -30, Parent = tgArrow,
+})
+New("Frame", {
+    Size = UDim2.new(0, 6, 0, 3),
+    Position = UDim2.new(1, -6, 0.5, -7),
+    BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
+    Rotation = 45, Parent = tgArrow,
+})
+New("Frame", {
+    Size = UDim2.new(0, 6, 0, 3),
+    Position = UDim2.new(1, -6, 0.5, 1),
+    BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
+    Rotation = -45, Parent = tgArrow,
+})
+
+New("TextLabel", {
+    Text = "Telegram канал", Font = Enum.Font.GothamMedium, TextSize = 12,
+    TextColor3 = CFG.Accent2, TextXAlignment = Enum.TextXAlignment.Left,
+    BackgroundTransparency = 1, Size = UDim2.new(1, -110, 1, 0),
+    Position = UDim2.new(0, 44, 0, 0), Parent = tgBtn,
+})
+New("TextLabel", {
+    Text = CFG.TelegramHandle, Font = Enum.Font.Code, TextSize = 11,
+    TextColor3 = CFG.TextSub, TextXAlignment = Enum.TextXAlignment.Right,
+    BackgroundTransparency = 1, Size = UDim2.new(0, 100, 1, 0),
+    Position = UDim2.new(1, -108, 0, 0), Parent = tgBtn,
+})
+
+tgBtn.MouseEnter:Connect(function()
+    Tw(tgBtn, 0.15, { BackgroundColor3 = CFG.Accent2, BackgroundTransparency = 0.15 })
+    Tw(tgStroke, 0.15, { Transparency = 0.1 })
+    for _, f in ipairs(tgBtn:GetDescendants()) do
+        if f:IsA("TextLabel") then
+            Tw(f, 0.15, { TextColor3 = Color3.fromRGB(255, 255, 255) })
+        elseif f:IsA("Frame") and f ~= tgIconHolder then
+            Tw(f, 0.15, { BackgroundColor3 = Color3.fromRGB(255, 255, 255) })
+        end
+    end
+end)
+tgBtn.MouseLeave:Connect(function()
+    Tw(tgBtn, 0.15, { BackgroundColor3 = CFG.BgPanel, BackgroundTransparency = 0.2 })
+    Tw(tgStroke, 0.15, { Transparency = 0.6 })
+    for _, f in ipairs(tgBtn:GetDescendants()) do
+        if f:IsA("TextLabel") then
+            local isSub = f.Text == CFG.TelegramHandle
+            Tw(f, 0.15, { TextColor3 = isSub and CFG.TextSub or CFG.Accent2 })
+        elseif f:IsA("Frame") and f ~= tgIconHolder then
+            Tw(f, 0.15, { BackgroundColor3 = CFG.Accent2 })
+        end
+    end
+end)
+
+tgBtn.MouseButton1Click:Connect(function()
+    local opened = false
+    pcall(function()
+        GuiService:OpenBrowserWindow(CFG.TelegramURL)
+        opened = true
+    end)
+    if not opened then
+        pcall(function()
+            if setclipboard then setclipboard(CFG.TelegramURL) end
+        end)
+        Notify("Telegram", "Ссылка скопирована в буфер", 2.5, "success")
+    else
+        Notify("Telegram", "Открываю " .. CFG.TelegramHandle .. "...", 2, "success")
+    end
+end)
+
+-- ═══════════════════════ UNLOADER ═══════════════════════
 Section(SettingsTab, "Управление")
 local unloader = New("TextButton", {
     Text = "", BackgroundColor3 = CFG.BgPanel,
@@ -1409,6 +1506,7 @@ unloader.MouseButton1Click:Connect(function()
     pcall(function() ScreenGui:Destroy() end)
 end)
 
+-- ═══════════════════════ MENU OPEN / DRAG ═══════════════════════
 local function SetMenuOpen(open)
     if open then
         ToggleBtn.Visible = false
@@ -1444,7 +1542,6 @@ UserInputService.InputEnded:Connect(function(i)
 end)
 
 local btnDrag, bStart, bPos, moved = false, nil, nil, false
-local btnDragActive = false
 ToggleBtn.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         btnDrag = true; moved = false
@@ -1481,4 +1578,4 @@ SetMenuOpen(true)
 task.delay(0.4, function()
     Notify("Fable Hub MM2", "FOV Centered (" .. CFG.Version .. ")", 3, "success")
 end)
-print("[FableHub MM2] FOV Centered loaded successfully!")
+print("[FableHub MM2] FOV Centered + Telegram link loaded successfully!") 
