@@ -17,7 +17,7 @@ local GAMES = {
         name = "Murder Mystery 2",
         desc = "Auto Farm, ESP, Silent Aim, Anti-Kick",
         version = "v1.9.3",
-        url = "https://gist.githubusercontent.com/ТВОЙ_ЮЗЕР/ХЭШ/raw/fablehub-mm2.lua",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/FableHub_mm2.lua",
     },
     -- Arsenal
     [286090429] = {
