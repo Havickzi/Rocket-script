@@ -1,8 +1,10 @@
 --[[
-    FABLE HUB MM2 v1.9.4 (Anti-Kick + Coin ESP + Silent Aim + Telegram Link)
+    FABLE HUB MM2 v2.2.0
     Murder Mystery 2 Cheat Script
-    New:
-    - Кнопка перехода в Telegram-канал @Fable_Hub во вкладке "Настройки"
+    - Fling Murderer (Touch Fling — рабочий)
+    - Innocent ESP
+    - Silent Aim (Gun)
+    - Auto Farm (Anti-Kick)
 --]]
 
 if game.PlaceId ~= 142823291 then
@@ -23,7 +25,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
 local CFG = {
-    Version     = "v1.9.4",
+    Version     = "v2.2.0",
     Accent1     = Color3.fromRGB(139, 92, 246),
     Accent2     = Color3.fromRGB(217, 70, 239),
     Accent3     = Color3.fromRGB(99, 102, 241),
@@ -34,7 +36,7 @@ local CFG = {
     TextSub     = Color3.fromRGB(150, 150, 185),
     Success     = Color3.fromRGB(52, 211, 153),
     Danger      = Color3.fromRGB(248, 113, 113),
-    FarmSpeed   = 30,
+    FarmSpeed   = 32,
     FarmRadius  = 400,
     CoinStop    = 3,
     QueueSize   = 25,
@@ -47,19 +49,26 @@ local CFG = {
     SilentAimTarget = "Murderer",
     TelegramURL    = "https://t.me/Fable_Hub",
     TelegramHandle = "@Fable_Hub",
+    -- Fling настройки
+    FlingVelocity  = 5000,   -- скорость "снаряда" (5000-15000)
+    FlingUpBoost   = 200,    -- подброс вверх
+    FlingDuration  = 3,      -- сколько секунд длится fling
+    FlingLoopDelay = 3.5,    -- пауза между циклами fling
 }
 
 local State = {
-    autoFarm    = false,
-    antiAfk     = false,
-    fullbright  = false,
-    infJump     = false,
-    noclip      = false,
-    espMurderer = false,
-    espSheriff  = false,
-    espGun      = false,
-    coinESP     = false,
-    silentAim   = false,
+    autoFarm      = false,
+    antiAfk       = false,
+    fullbright    = false,
+    infJump       = false,
+    noclip        = false,
+    espMurderer   = false,
+    espSheriff    = false,
+    espGun        = false,
+    espInnocent   = false,
+    coinESP       = false,
+    silentAim     = false,
+    flingMurderer = false,
 }
 
 local function New(cls, props, kids)
@@ -107,7 +116,6 @@ local function MakeIcon(parent, name, size, color)
         Position = UDim2.new(0.5, 0, 0.5, 0),
         Parent = parent,
     })
-
     local th = math.max(1, math.floor(size / 10))
 
     local function shape(w, h, x, y, rot, radius)
@@ -193,7 +201,6 @@ local function MakeIcon(parent, name, size, color)
         shape(0.85, 0.11, 0.5, 0.5, 45, UDim.new(1, 0))
         shape(0.85, 0.11, 0.5, 0.5, -45, UDim.new(1, 0))
     end
-
     return holder
 end
 
@@ -208,9 +215,7 @@ local function Notify(title, text, dur, kind)
         Size = UDim2.new(1, 0, 0, 56),
         BackgroundColor3 = CFG.BgPanel,
         BackgroundTransparency = 0.08,
-        BorderSizePixel = 0,
-        Parent = NotifBox,
-        ZIndex = 50,
+        BorderSizePixel = 0, Parent = NotifBox, ZIndex = 50,
     })
     Corner(t, UDim.new(0, 12))
     Stroke(t, accent, 1, 0.35)
@@ -219,8 +224,7 @@ local function Notify(title, text, dur, kind)
         Size = UDim2.new(0, 3, 1, -16),
         Position = UDim2.new(0, 8, 0, 8),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BorderSizePixel = 0,
-        Parent = t, ZIndex = 51,
+        BorderSizePixel = 0, Parent = t, ZIndex = 51,
     })
     Corner(b, UDim.new(1, 0))
     Gradient(b)
@@ -313,8 +317,7 @@ local Main = New("Frame", {
     BackgroundTransparency = 0.08,
     BorderSizePixel = 0,
     ClipsDescendants = true,
-    Parent = ScreenGui,
-    ZIndex = 2,
+    Parent = ScreenGui, ZIndex = 2,
 })
 Corner(Main, UDim.new(0, 16))
 Stroke(Main, CFG.Accent1, 1.5, 0.3)
@@ -330,8 +333,7 @@ Gradient(Glow, CFG.Accent1, CFG.Accent2, 90)
 local TopBar = New("Frame", {
     Size = UDim2.new(1, 0, 0, 50),
     BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Parent = Main, ZIndex = 3,
+    BorderSizePixel = 0, Parent = Main, ZIndex = 3,
 })
 
 New("Frame", {
@@ -346,8 +348,7 @@ local LogoBadge = New("Frame", {
     Size = UDim2.new(0, 34, 0, 34),
     Position = UDim2.new(0, 12, 0, 8),
     BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BorderSizePixel = 0,
-    Parent = TopBar, ZIndex = 4,
+    BorderSizePixel = 0, Parent = TopBar, ZIndex = 4,
 })
 Corner(LogoBadge, UDim.new(0, 10))
 local LogoGrad = Gradient(LogoBadge)
@@ -436,8 +437,7 @@ local TabBar = New("Frame", {
     Size = UDim2.new(0, 136, 1, -50),
     Position = UDim2.new(0, 0, 0, 50),
     BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Parent = Main, ZIndex = 3,
+    BorderSizePixel = 0, Parent = Main, ZIndex = 3,
 })
 New("UIListLayout", {
     Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder,
@@ -474,8 +474,7 @@ local ToggleBtn = New("TextButton", {
     Font = Enum.Font.GothamBold, TextSize = 17,
     TextColor3 = Color3.fromRGB(255, 255, 255),
     Visible = false, ZIndex = 100,
-    Parent = ScreenGui,
-    AutoButtonColor = false,
+    Parent = ScreenGui, AutoButtonColor = false,
 })
 Corner(ToggleBtn, UDim.new(0, 14))
 Gradient(ToggleBtn)
@@ -717,7 +716,7 @@ New("TextLabel", {
     Position = UDim2.new(0.5, 0, 0, 0), Parent = StatusBar, ZIndex = 4,
 })
 
--- ═══════════════════════ COIN ESP (объявлено заранее) ═══════════════════════
+-- ═══════════════════════ COIN ESP ═══════════════════════
 local coinESP_Highlights = {}
 
 local function ClearCoinESP()
@@ -730,7 +729,6 @@ end
 local function UpdateCoinESP()
     if not State.coinESP then return end
     ClearCoinESP()
-
     local tagged = CollectionService:GetTagged("ServerCoinPart")
     for _, obj in ipairs(tagged) do
         if obj and obj.Parent and obj:IsA("BasePart") then
@@ -748,36 +746,28 @@ local function UpdateCoinESP()
     end
 end
 
--- ═══════════════════════ SILENT AIM (объявлено заранее) ═══════════════════════
+-- ═══════════════════════ SILENT AIM ═══════════════════════
 local silentAimCircle = nil
 
 local function CreateFOVCircle()
     if silentAimCircle and silentAimCircle.Parent then return silentAimCircle end
-
     local circle = New("Frame", {
         Name = "FH_FOVCircle",
         Size = UDim2.new(0, CFG.SilentAimFOV * 2, 0, CFG.SilentAimFOV * 2),
         Position = UDim2.new(0.5, -CFG.SilentAimFOV, 0.5, -CFG.SilentAimFOV),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Visible = false,
-        ZIndex = 999,
-        Parent = ScreenGui,
+        BackgroundTransparency = 1, BorderSizePixel = 0,
+        Visible = false, ZIndex = 999, Parent = ScreenGui,
     })
     Corner(circle, UDim.new(1, 0))
     Stroke(circle, CFG.Accent2, 2, 0.2)
-
     local dot = New("Frame", {
         Name = "CenterDot",
         Size = UDim2.new(0, 4, 0, 4),
         Position = UDim2.new(0.5, -2, 0.5, -2),
-        BackgroundColor3 = CFG.Accent2,
-        BorderSizePixel = 0,
-        ZIndex = 1000,
-        Parent = circle,
+        BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
+        ZIndex = 1000, Parent = circle,
     })
     Corner(dot, UDim.new(1, 0))
-
     silentAimCircle = circle
     return circle
 end
@@ -791,7 +781,6 @@ end
 local function FindSilentAimTarget()
     local cam = workspace.CurrentCamera
     if not cam then return nil end
-
     local screenCenter = cam.ViewportSize / 2
     local bestTarget = nil
     local bestScore = math.huge
@@ -808,32 +797,25 @@ local function FindSilentAimTarget()
                 elseif player.Character:FindFirstChild("Gun") or (player.Backpack and player.Backpack:FindFirstChild("Gun")) then
                     role = "Sheriff"
                 end
-
                 local valid = false
                 if CFG.SilentAimTarget == "Murderer" and role == "Murderer" then valid = true end
                 if CFG.SilentAimTarget == "Sheriff" and role == "Sheriff" then valid = true end
                 if CFG.SilentAimTarget == "Nearest" then valid = true end
-
                 if valid then
                     local screenPos, onScreen = cam:WorldToViewportPoint(hrp.Position)
-
                     if onScreen and screenPos.Z > 0 then
                         local dx = screenPos.X - screenCenter.X
                         local dy = screenPos.Y - screenCenter.Y
                         local dist2D = math.sqrt(dx*dx + dy*dy)
-
-                        if dist2D < fovPixels then
-                            if dist2D < bestScore then
-                                bestScore = dist2D
-                                bestTarget = hrp
-                            end
+                        if dist2D < fovPixels and dist2D < bestScore then
+                            bestScore = dist2D
+                            bestTarget = hrp
                         end
                     end
                 end
             end
         end
     end
-
     return bestTarget
 end
 
@@ -877,13 +859,8 @@ end)
 Section(MainTab, "ESP и Aim")
 Toggle(MainTab, "coin", "Coin ESP", false, function(s)
     State.coinESP = s
-    if s then
-        UpdateCoinESP()
-        Notify("Coin ESP", "Включен", 2, "success")
-    else
-        ClearCoinESP()
-        Notify("Coin ESP", "Выключен", 2)
-    end
+    if s then UpdateCoinESP(); Notify("Coin ESP", "Включен", 2, "success")
+    else ClearCoinESP(); Notify("Coin ESP", "Выключен", 2) end
 end)
 
 Toggle(MainTab, "target", "Silent Aim (Gun)", false, function(s)
@@ -911,20 +888,12 @@ task.spawn(function()
 end)
 
 -- ═══════════════════════ SAFE NOCLIP ═══════════════════════
-local NOCLIP_PARTS = {
-    HumanoidRootPart = true,
-    UpperTorso = true,
-    LowerTorso = true,
-    Torso = true,
-    Head = true,
-}
+local NOCLIP_PARTS = { HumanoidRootPart = true, UpperTorso = true, LowerTorso = true, Torso = true, Head = true }
 
 local function ApplyNoclip()
     if not State.noclip or not character then return end
     for _, p in ipairs(character:GetChildren()) do
-        if p:IsA("BasePart") and NOCLIP_PARTS[p.Name] then
-            p.CanCollide = false
-        end
+        if p:IsA("BasePart") and NOCLIP_PARTS[p.Name] then p.CanCollide = false end
     end
 end
 
@@ -964,7 +933,6 @@ task.spawn(function()
             if silentAimCircle then
                 silentAimCircle.Visible = true
                 UpdateFOVCircle()
-
                 local target = FindSilentAimTarget()
                 local stroke = silentAimCircle:FindFirstChildOfClass("UIStroke")
                 if stroke then
@@ -985,7 +953,7 @@ task.spawn(function()
     end
 end)
 
--- ═══════════════════════ ANTI-KICK FARM ENGINE ═══════════════════════
+-- ═══════════════════════ FARM ENGINE ═══════════════════════
 local farmActive = false
 local farmRoutine = nil
 
@@ -996,71 +964,133 @@ local function StopFarmEngine()
         farmRoutine = nil
     end
     if rootPart and rootPart.Parent then
-        pcall(function()
-            rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        end)
+        pcall(function() rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
     end
     if humanoid then
         pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
     end
-    if not State.noclip then
-        RestoreCollision()
-    else
-        ApplyNoclip()
-    end
+    if not State.noclip then RestoreCollision() else ApplyNoclip() end
 end
 
 local function FindNearestMurderer()
     local myPos = rootPart and rootPart.Position
     if not myPos then return nil, math.huge end
-
     local nearest = nil
     local minDist = math.huge
-
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local hasKnife =
                 player.Character:FindFirstChild("Knife") ~= nil or
                 (player.Backpack and player.Backpack:FindFirstChild("Knife") ~= nil)
-
             if hasKnife then
                 local hrp = player.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     local d = (hrp.Position - myPos).Magnitude
-                    if d < minDist then
-                        minDist = d
-                        nearest = hrp
-                    end
+                    if d < minDist then minDist = d; nearest = hrp end
                 end
             end
         end
     end
-
     return nearest, minDist
 end
 
+-- ═══════════════════════ FLING MURDERER v3 — TOUCH FLING ═══════════════════════
+local flingActive = false
+local flingLoopConn = nil
+
+local function StopFling()
+    flingActive = false
+    if flingLoopConn then
+        pcall(function() flingLoopConn:Disconnect() end)
+        flingLoopConn = nil
+    end
+    if character then
+        for _, p in ipairs(character:GetDescendants()) do
+            if p:IsA("BasePart") then
+                pcall(function()
+                    p.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    p.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                end)
+            end
+        end
+        if humanoid then
+            pcall(function() humanoid.AutoRotate = true end)
+            pcall(function() humanoid.PlatformStand = false end)
+        end
+    end
+end
+
+local function FlingMurderer(target)
+    if not target or not target.Parent then return end
+    local targetHum = target.Parent:FindFirstChildOfClass("Humanoid")
+    if not targetHum or targetHum.Health <= 0 then return end
+
+    local myRoot = rootPart
+    if not myRoot or not myRoot.Parent then return end
+    if not humanoid or humanoid.Health <= 0 then return end
+
+    flingActive = true
+    pcall(function() humanoid.AutoRotate = false end)
+
+    if flingLoopConn then
+        pcall(function() flingLoopConn:Disconnect() end)
+    end
+
+    flingLoopConn = RunService.Heartbeat:Connect(function()
+        if not flingActive then return end
+        if not myRoot or not myRoot.Parent then return end
+        if not humanoid or humanoid.Health <= 0 then return end
+        if not target or not target.Parent then return end
+
+        local targetPos = target.Position
+
+        -- 1) Телепорт ВНУТРЬ цели (заходим в хитбокс)
+        myRoot.CFrame = CFrame.new(targetPos + Vector3.new(0, 1, 0))
+
+        -- 2) Огромная скорость НА СЕБЯ, направленная сквозь цель
+        --    Это превращает игрока в "снаряд" — при столкновении
+        --    сервер применяет импульс к маньяку
+        local dir = (targetPos - myRoot.Position)
+        if dir.Magnitude < 0.1 then dir = Vector3.new(0, 0, 1) end
+        dir = dir.Unit
+
+        myRoot.AssemblyLinearVelocity = dir * CFG.FlingVelocity + Vector3.new(0, CFG.FlingUpBoost, 0)
+        myRoot.AssemblyAngularVelocity = Vector3.new(0, 50000, 0)
+
+        -- 3) Fire touch — критично, чтобы сервер "увидел" контакт
+        pcall(function()
+            firetouchinterest(myRoot, target, 0)
+            firetouchinterest(myRoot, target, 1)
+        end)
+
+        -- 4) Дополнительно: толкаем цель напрямую (сработает, если цель на нашей сети)
+        pcall(function()
+            target.AssemblyLinearVelocity = -dir * CFG.FlingVelocity + Vector3.new(0, CFG.FlingUpBoost, 0)
+        end)
+    end)
+
+    task.delay(CFG.FlingDuration, function()
+        if flingActive then StopFling() end
+    end)
+end
+
+-- ═══════════════════════ FARM LOGIC ═══════════════════════
 local function SmoothStop()
     if not rootPart or not rootPart.Parent then return end
     for _ = 1, 3 do
         if not rootPart or not rootPart.Parent then return end
-        pcall(function()
-            rootPart.AssemblyLinearVelocity = rootPart.AssemblyLinearVelocity * 0.4
-        end)
+        pcall(function() rootPart.AssemblyLinearVelocity = rootPart.AssemblyLinearVelocity * 0.4 end)
         RunService.Heartbeat:Wait()
     end
     if rootPart and rootPart.Parent then
-        pcall(function()
-            rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        end)
+        pcall(function() rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
     end
 end
 
 local function MoveToPoint(targetPos, speed, closeDist)
     if not rootPart or not rootPart.Parent or not humanoid then return false end
     if humanoid.Health <= 0 then return false end
-
     closeDist = closeDist or CFG.CoinStop
-
     local t0 = tick()
     local lastPos = rootPart.Position
     local stuck = 0
@@ -1069,47 +1099,26 @@ local function MoveToPoint(targetPos, speed, closeDist)
     while State.autoFarm do
         if not rootPart or not rootPart.Parent then break end
         if humanoid.Health <= 0 then break end
-
         local curPos = rootPart.Position
         local dir = targetPos - curPos
         local d = dir.Magnitude
-
         if d < closeDist then break end
         if tick() - t0 > d / speed + 4.0 then break end
-
         if (curPos - lastPos).Magnitude < 0.1 then
             stuck += 0.15
             if stuck > 2.5 then break end
-        else
-            stuck = 0
-        end
+        else stuck = 0 end
         lastPos = curPos
-
         local horizontalDir = Vector3.new(dir.X, 0, dir.Z)
-        if horizontalDir.Magnitude > 0.1 then
-            horizontalDir = horizontalDir.Unit * speed
-        else
-            horizontalDir = Vector3.new(0, 0, 0)
-        end
-
+        if horizontalDir.Magnitude > 0.1 then horizontalDir = horizontalDir.Unit * speed
+        else horizontalDir = Vector3.new(0, 0, 0) end
         local dy = targetPos.Y - curPos.Y
         local targetVY = math.clamp(dy * 1.5, -CFG.VerticalMax, CFG.VerticalMax)
-
-        if curPos.Y < targetPos.Y - 3 then
-            targetVY = math.max(targetVY, 3)
-        end
-
+        if curPos.Y < targetPos.Y - 3 then targetVY = math.max(targetVY, 3) end
         curVelY = curVelY + (targetVY - curVelY) * 0.4
-
-        rootPart.AssemblyLinearVelocity = Vector3.new(
-            horizontalDir.X,
-            curVelY,
-            horizontalDir.Z
-        )
-
+        rootPart.AssemblyLinearVelocity = Vector3.new(horizontalDir.X, curVelY, horizontalDir.Z)
         RunService.Heartbeat:Wait()
     end
-
     SmoothStop()
     return true
 end
@@ -1117,57 +1126,46 @@ end
 local function CollectCoin(target)
     if not target or not target.obj or not target.obj.Parent then return end
     if not rootPart or not rootPart.Parent then return end
-
     MoveToPoint(target.part.Position, CFG.FarmSpeed, CFG.CoinStop)
-
     if target.obj.Parent and rootPart and rootPart.Parent then
         local t0 = tick()
         while State.autoFarm and target.obj.Parent and (tick() - t0 < 1.0) do
             if not rootPart or not rootPart.Parent then break end
             local dir = target.part.Position - rootPart.Position
             if dir.Magnitude < 2 then break end
-
             local unit = dir.Unit * 20
             rootPart.AssemblyLinearVelocity = Vector3.new(unit.X, unit.Y, unit.Z)
-
             RunService.Heartbeat:Wait()
         end
         SmoothStop()
     end
-
     if target.obj.Parent and rootPart then
         pcall(function()
             firetouchinterest(rootPart, target.obj, 0)
             firetouchinterest(rootPart, target.obj, 1)
         end)
     end
-
     task.wait(0.08)
-
     if target.obj and target.obj.Parent and rootPart then
         pcall(function()
             firetouchinterest(rootPart, target.obj, 0)
             firetouchinterest(target.obj, rootPart, 1)
         end)
     end
-
     task.wait(0.05)
 end
 
 local function StartFarmEngine()
     if farmActive then return end
     if not rootPart or not humanoid then return end
-
     farmActive = true
     farmRoutine = task.spawn(function()
         while State.autoFarm do
             if not rootPart or not rootPart.Parent or humanoid.Health <= 0 then
                 task.wait(0.3); continue
             end
-
             local fromPos = rootPart.Position
             local pool = {}
-
             local tagged = CollectionService:GetTagged("ServerCoinPart")
             for _, obj in ipairs(tagged) do
                 if obj and obj.Parent and obj:IsA("BasePart") then
@@ -1177,29 +1175,19 @@ local function StartFarmEngine()
                     end
                 end
             end
-
-            if #pool == 0 then
-                task.wait(0.3); continue
-            end
-
+            if #pool == 0 then task.wait(0.3); continue end
             table.sort(pool, function(a, b)
                 return (a.part.Position - fromPos).Magnitude < (b.part.Position - fromPos).Magnitude
             end)
-
-            while #pool > CFG.QueueSize do
-                table.remove(pool)
-            end
+            while #pool > CFG.QueueSize do table.remove(pool) end
 
             while #pool > 0 and State.autoFarm do
                 if not rootPart or not rootPart.Parent or humanoid.Health <= 0 then break end
-
                 local curPos = rootPart.Position
                 local murderer, murdererDist = FindNearestMurderer()
                 local murdererPos = murderer and murderer.Position or nil
-
                 local bestIdx = nil
                 local bestScore = math.huge
-
                 for i = #pool, 1, -1 do
                     local c = pool[i]
                     if not c.obj or not c.obj.Parent then
@@ -1207,38 +1195,24 @@ local function StartFarmEngine()
                     else
                         local dSelf = (c.part.Position - curPos).Magnitude
                         local score = dSelf
-
                         if murdererPos then
                             local dMurd = (c.part.Position - murdererPos).Magnitude
-
-                            if dMurd < CFG.CoinNearMurd then
-                                score = score + 1000
-                            elseif dMurd < CFG.CoinMidMurd then
-                                score = score + 200
-                            end
-
+                            if dMurd < CFG.CoinNearMurd then score = score + 1000
+                            elseif dMurd < CFG.CoinMidMurd then score = score + 200 end
                             if murdererDist < CFG.MurdererWarn then
                                 score = score - math.min(dMurd, 150) * 2
                             end
                         end
-
-                        if score < bestScore then
-                            bestScore = score
-                            bestIdx = i
-                        end
+                        if score < bestScore then bestScore = score; bestIdx = i end
                     end
                 end
-
                 if not bestIdx then break end
-
                 local target = pool[bestIdx]
                 CollectCoin(target)
                 table.remove(pool, bestIdx)
             end
-
             task.wait(0.1)
         end
-
         farmActive = false
     end)
 end
@@ -1257,11 +1231,7 @@ end)
 LocalPlayer.CharacterAdded:Connect(function(ch)
     task.wait(0.5)
     SetupChar(ch)
-    if State.autoFarm then
-        StopFarmEngine()
-        task.wait(0.1)
-        StartFarmEngine()
-    end
+    if State.autoFarm then StopFarmEngine(); task.wait(0.1); StartFarmEngine() end
     if State.noclip then ApplyNoclip() end
 end)
 
@@ -1277,10 +1247,29 @@ end)
 
 Toggle(PlayerTab, "ghost", "Noclip (Safe)", false, function(s)
     State.noclip = s
+    if s then ApplyNoclip() else RestoreCollision() end
+end)
+
+Section(PlayerTab, "Атака")
+
+Toggle(PlayerTab, "knife", "Fling Murderer (Touch)", false, function(s)
+    State.flingMurderer = s
     if s then
-        ApplyNoclip()
+        task.spawn(function()
+            while State.flingMurderer do
+                local murderer = FindNearestMurderer()
+                if murderer then
+                    FlingMurderer(murderer)
+                    task.wait(CFG.FlingLoopDelay)
+                else
+                    task.wait(1)
+                end
+            end
+        end)
+        Notify("Fling Murderer", "Включен (Touch Fling)", 2, "success")
     else
-        RestoreCollision()
+        StopFling()
+        Notify("Fling Murderer", "Выключен", 2)
     end
 end)
 
@@ -1295,17 +1284,20 @@ local function UpdateESP()
     ClearESP()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
-            local role = nil
+            local role = "Innocent"
             if player.Character:FindFirstChild("Knife") or (player.Backpack and player.Backpack:FindFirstChild("Knife")) then
                 role = "Murderer"
             elseif player.Character:FindFirstChild("Gun") or (player.Backpack and player.Backpack:FindFirstChild("Gun")) then
                 role = "Sheriff"
             end
-
-            if (role == "Murderer" and State.espMurderer) or (role == "Sheriff" and State.espSheriff) then
+            if (role == "Murderer" and State.espMurderer)
+                or (role == "Sheriff" and State.espSheriff)
+                or (role == "Innocent" and State.espInnocent) then
                 local h = Instance.new("Highlight")
                 h.Adornee = player.Character
-                h.FillColor = role == "Murderer" and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(60, 160, 255)
+                if role == "Murderer" then h.FillColor = Color3.fromRGB(255, 60, 60)
+                elseif role == "Sheriff" then h.FillColor = Color3.fromRGB(60, 160, 255)
+                else h.FillColor = Color3.fromRGB(80, 255, 120) end
                 h.OutlineColor = Color3.fromRGB(255, 255, 255)
                 h.FillTransparency = 0.5
                 h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -1314,7 +1306,6 @@ local function UpdateESP()
             end
         end
     end
-
     if State.espGun then
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj.Name:lower():find("gun") and obj:IsA("Tool") then
@@ -1334,12 +1325,13 @@ end
 Section(EspTab, "Подсветка ролей")
 Toggle(EspTab, "knife", "ESP Murderer", false, function(s) State.espMurderer = s; UpdateESP() end)
 Toggle(EspTab, "gun", "ESP Sheriff", false, function(s) State.espSheriff = s; UpdateESP() end)
+Toggle(EspTab, "person", "ESP Innocent", false, function(s) State.espInnocent = s; UpdateESP() end)
 Toggle(EspTab, "box", "ESP Gun", false, function(s) State.espGun = s; UpdateESP() end)
 
 task.spawn(function()
     while true do
         task.wait(2)
-        if State.espMurderer or State.espSheriff or State.espGun then UpdateESP() end
+        if State.espMurderer or State.espSheriff or State.espGun or State.espInnocent then UpdateESP() end
     end
 end)
 
@@ -1361,15 +1353,13 @@ New("TextLabel", {
     Position = UDim2.new(0, 12, 0, 8), Parent = infoCard,
 })
 New("TextLabel", {
-    Text = "MM2  •  " .. CFG.Version .. "  •  FOV Centered", Font = Enum.Font.Code, TextSize = 11,
+    Text = "MM2  •  " .. CFG.Version .. "  •  Touch Fling", Font = Enum.Font.Code, TextSize = 11,
     TextColor3 = CFG.TextSub, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 16),
     Position = UDim2.new(0, 12, 0, 30), Parent = infoCard,
 })
 
--- ═══════════════════════ TELEGRAM LINK ═══════════════════════
 Section(SettingsTab, "Сообщество")
-
 local tgBtn = New("TextButton", {
     Text = "", BackgroundColor3 = CFG.BgPanel,
     BackgroundTransparency = 0.2, BorderSizePixel = 0,
@@ -1378,39 +1368,6 @@ local tgBtn = New("TextButton", {
 })
 Corner(tgBtn, UDim.new(0, 12))
 local tgStroke = Stroke(tgBtn, CFG.Accent2, 1, 0.6)
-
-local tgIconHolder = New("Frame", {
-    Size = UDim2.new(0, 28, 0, 28),
-    Position = UDim2.new(0, 8, 0.5, -14),
-    BackgroundColor3 = CFG.Accent2,
-    BackgroundTransparency = 0.82,
-    BorderSizePixel = 0, Parent = tgBtn,
-})
-Corner(tgIconHolder, UDim.new(0, 8))
-
-local tgArrow = New("Frame", {
-    Size = UDim2.new(0, 14, 0, 14),
-    Position = UDim2.new(0.5, -7, 0.5, -7),
-    BackgroundTransparency = 1, Parent = tgIconHolder,
-})
-New("Frame", {
-    Size = UDim2.new(0, 14, 0, 3),
-    Position = UDim2.new(0, 0, 0.5, -1.5),
-    BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
-    Rotation = -30, Parent = tgArrow,
-})
-New("Frame", {
-    Size = UDim2.new(0, 6, 0, 3),
-    Position = UDim2.new(1, -6, 0.5, -7),
-    BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
-    Rotation = 45, Parent = tgArrow,
-})
-New("Frame", {
-    Size = UDim2.new(0, 6, 0, 3),
-    Position = UDim2.new(1, -6, 0.5, 1),
-    BackgroundColor3 = CFG.Accent2, BorderSizePixel = 0,
-    Rotation = -45, Parent = tgArrow,
-})
 
 New("TextLabel", {
     Text = "Telegram канал", Font = Enum.Font.GothamMedium, TextSize = 12,
@@ -1429,11 +1386,7 @@ tgBtn.MouseEnter:Connect(function()
     Tw(tgBtn, 0.15, { BackgroundColor3 = CFG.Accent2, BackgroundTransparency = 0.15 })
     Tw(tgStroke, 0.15, { Transparency = 0.1 })
     for _, f in ipairs(tgBtn:GetDescendants()) do
-        if f:IsA("TextLabel") then
-            Tw(f, 0.15, { TextColor3 = Color3.fromRGB(255, 255, 255) })
-        elseif f:IsA("Frame") and f ~= tgIconHolder then
-            Tw(f, 0.15, { BackgroundColor3 = Color3.fromRGB(255, 255, 255) })
-        end
+        if f:IsA("TextLabel") then Tw(f, 0.15, { TextColor3 = Color3.fromRGB(255, 255, 255) }) end
     end
 end)
 tgBtn.MouseLeave:Connect(function()
@@ -1443,22 +1396,14 @@ tgBtn.MouseLeave:Connect(function()
         if f:IsA("TextLabel") then
             local isSub = f.Text == CFG.TelegramHandle
             Tw(f, 0.15, { TextColor3 = isSub and CFG.TextSub or CFG.Accent2 })
-        elseif f:IsA("Frame") and f ~= tgIconHolder then
-            Tw(f, 0.15, { BackgroundColor3 = CFG.Accent2 })
         end
     end
 end)
-
 tgBtn.MouseButton1Click:Connect(function()
     local opened = false
-    pcall(function()
-        GuiService:OpenBrowserWindow(CFG.TelegramURL)
-        opened = true
-    end)
+    pcall(function() GuiService:OpenBrowserWindow(CFG.TelegramURL); opened = true end)
     if not opened then
-        pcall(function()
-            if setclipboard then setclipboard(CFG.TelegramURL) end
-        end)
+        pcall(function() if setclipboard then setclipboard(CFG.TelegramURL) end end)
         Notify("Telegram", "Ссылка скопирована в буфер", 2.5, "success")
     else
         Notify("Telegram", "Открываю " .. CFG.TelegramHandle .. "...", 2, "success")
@@ -1485,18 +1430,23 @@ unloader.MouseEnter:Connect(function()
     Tw(unloader, 0.15, { BackgroundColor3 = CFG.Danger })
     Tw(unloaderStroke, 0.15, { Transparency = 0.2 })
     for _, f in ipairs(unloader:GetDescendants()) do
-        if f:IsA("Frame") or f:IsA("TextLabel") then Tw(f, 0.15, { BackgroundColor3 = Color3.fromRGB(255,255,255), TextColor3 = Color3.fromRGB(255,255,255) }) end
+        if f:IsA("Frame") or f:IsA("TextLabel") then
+            Tw(f, 0.15, { BackgroundColor3 = Color3.fromRGB(255,255,255), TextColor3 = Color3.fromRGB(255,255,255) })
+        end
     end
 end)
 unloader.MouseLeave:Connect(function()
     Tw(unloader, 0.15, { BackgroundColor3 = CFG.BgPanel })
     Tw(unloaderStroke, 0.15, { Transparency = 0.6 })
     for _, f in ipairs(unloader:GetDescendants()) do
-        if f:IsA("Frame") or f:IsA("TextLabel") then Tw(f, 0.15, { BackgroundColor3 = CFG.Danger, TextColor3 = CFG.Danger }) end
+        if f:IsA("Frame") or f:IsA("TextLabel") then
+            Tw(f, 0.15, { BackgroundColor3 = CFG.Danger, TextColor3 = CFG.Danger })
+        end
     end
 end)
 unloader.MouseButton1Click:Connect(function()
     StopFarmEngine()
+    StopFling()
     ClearESP()
     ClearCoinESP()
     RestoreCollision()
@@ -1576,6 +1526,6 @@ end)
 task.wait(0.3)
 SetMenuOpen(true)
 task.delay(0.4, function()
-    Notify("Fable Hub MM2", "FOV Centered (" .. CFG.Version .. ")", 3, "success")
+    Notify("Fable Hub MM2", "Touch Fling готов (" .. CFG.Version .. ")", 3, "success")
 end)
-print("[FableHub MM2] FOV Centered + Telegram link loaded successfully!") 
+print("[FableHub MM2] v2.2.0 loaded — Touch Fling, Innocent ESP, Silent Aim")
