@@ -1,7 +1,9 @@
 --[[
-    FABLE HUB MM2 v2.2.0
+    FABLE HUB MM2 v2.3.3
     Murder Mystery 2 Cheat Script
-    - Fling Murderer (Touch Fling — рабочий)
+    - Fling Murderer (Touch Fling)
+    - Kill Aura (Murderer)
+    - Auto Pick Gun (TP — ищет выпавший HumanoidRootPart)
     - Innocent ESP
     - Silent Aim (Gun)
     - Auto Farm (Anti-Kick)
@@ -25,7 +27,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
 local CFG = {
-    Version     = "v2.2.0",
+    Version     = "v2.3.3",
     Accent1     = Color3.fromRGB(139, 92, 246),
     Accent2     = Color3.fromRGB(217, 70, 239),
     Accent3     = Color3.fromRGB(99, 102, 241),
@@ -49,11 +51,11 @@ local CFG = {
     SilentAimTarget = "Murderer",
     TelegramURL    = "https://t.me/Fable_Hub",
     TelegramHandle = "@Fable_Hub",
-    -- Fling настройки
-    FlingVelocity  = 5000,   -- скорость "снаряда" (5000-15000)
-    FlingUpBoost   = 200,    -- подброс вверх
-    FlingDuration  = 3,      -- сколько секунд длится fling
-    FlingLoopDelay = 3.5,    -- пауза между циклами fling
+    FlingVelocity  = 5000,
+    FlingUpBoost   = 200,
+    FlingDuration  = 3,
+    FlingLoopDelay = 3.5,
+    KillAuraRadius = 12,
 }
 
 local State = {
@@ -69,6 +71,8 @@ local State = {
     coinESP       = false,
     silentAim     = false,
     flingMurderer = false,
+    killAura      = false,
+    autoGun       = false,
 }
 
 local function New(cls, props, kids)
@@ -994,7 +998,168 @@ local function FindNearestMurderer()
     return nearest, minDist
 end
 
--- ═══════════════════════ FLING MURDERER v3 — TOUCH FLING ═══════════════════════
+-- ═══════════════════════ KILL AURA ═══════════════════════
+local killAuraActive = false
+local killAuraConn = nil
+
+local function StopKillAura()
+    killAuraActive = false
+    if killAuraConn then
+        pcall(function() killAuraConn:Disconnect() end)
+        killAuraConn = nil
+    end
+end
+
+local function StartKillAura()
+    if killAuraActive then return end
+    killAuraActive = true
+
+    killAuraConn = RunService.Heartbeat:Connect(function()
+        if not killAuraActive then return end
+        if not character or not rootPart or not humanoid then return end
+        if humanoid.Health <= 0 then return end
+
+        local myKnife = character:FindFirstChild("Knife")
+        if not myKnife then return end
+
+        local myPos = rootPart.Position
+        local auraRadius = CFG.KillAuraRadius or 12
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
+                    local dist = (hrp.Position - myPos).Magnitude
+                    if dist <= auraRadius then
+                        if myKnife.Parent ~= character then
+                            pcall(function() myKnife.Parent = character end)
+                        end
+                        pcall(function() myKnife:Activate() end)
+                        pcall(function()
+                            firetouchinterest(rootPart, hrp, 0)
+                            firetouchinterest(rootPart, hrp, 1)
+                        end)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════ AUTO PICK GUN (TP) ═══════════════════════
+local autoGunActive = false
+local autoGunRoutine = nil
+
+local function StopAutoGun()
+    autoGunActive = false
+    if autoGunRoutine then
+        pcall(task.cancel, autoGunRoutine)
+        autoGunRoutine = nil
+    end
+end
+
+local function StartAutoGun()
+    if autoGunActive then return end
+    autoGunActive = true
+
+    autoGunRoutine = task.spawn(function()
+        while autoGunActive do
+            task.wait(0.2)
+
+            if not character or not rootPart or not humanoid then
+                task.wait(0.5); continue
+            end
+            if humanoid.Health <= 0 then continue end
+            if character:FindFirstChild("Gun") then continue end
+
+            local bpGun = LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild("Gun")
+            if bpGun then
+                pcall(function() humanoid:EquipTool(bpGun) end)
+                task.wait(0.3)
+                continue
+            end
+
+            local bestDrop = nil
+            local bestDist = math.huge
+            local myPos = rootPart.Position
+
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj.Name == "HumanoidRootPart" and obj:IsA("BasePart") then
+                    local isCharacterRoot = false
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") == obj then
+                            isCharacterRoot = true
+                            break
+                        end
+                    end
+                    if isCharacterRoot then continue end
+
+                    local hasGunRay = obj:FindFirstChild("GunRaycastAttachment") ~= nil
+                    local hasGunShoulder = obj:FindFirstChild("GunShoulderAttachment") ~= nil
+
+                    if hasGunRay or hasGunShoulder then
+                        local d = (obj.Position - myPos).Magnitude
+                        if d < bestDist then
+                            bestDist = d
+                            bestDrop = obj
+                        end
+                    end
+                end
+            end
+
+            if not bestDrop then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("Tool") and obj.Name:lower():find("gun") then
+                        local parentIsChar = false
+                        for _, player in ipairs(Players:GetPlayers()) do
+                            if player.Character and obj.Parent == player.Character then
+                                parentIsChar = true
+                                break
+                            end
+                        end
+                        if not parentIsChar then
+                            local handle = obj:FindFirstChild("Handle")
+                            if handle and handle:IsA("BasePart") and handle.Parent then
+                                local d = (handle.Position - myPos).Magnitude
+                                if d < bestDist then
+                                    bestDist = d
+                                    bestDrop = handle
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+            if not bestDrop then continue end
+
+            for _ = 1, 5 do
+                if not autoGunActive then break end
+                if character:FindFirstChild("Gun") then break end
+                if not bestDrop or not bestDrop.Parent then break end
+
+                pcall(function()
+                    rootPart.CFrame = CFrame.new(bestDrop.Position)
+                end)
+                pcall(function()
+                    rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                end)
+
+                RunService.Heartbeat:Wait()
+                task.wait(0.05)
+            end
+
+            task.wait(0.2)
+            if character:FindFirstChild("Gun") or (LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild("Gun")) then
+                Notify("Auto Gun", "Пистолет подобран", 1.5, "success")
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════ FLING MURDERER ═══════════════════════
 local flingActive = false
 local flingLoopConn = nil
 
@@ -1044,12 +1209,8 @@ local function FlingMurderer(target)
 
         local targetPos = target.Position
 
-        -- 1) Телепорт ВНУТРЬ цели (заходим в хитбокс)
         myRoot.CFrame = CFrame.new(targetPos + Vector3.new(0, 1, 0))
 
-        -- 2) Огромная скорость НА СЕБЯ, направленная сквозь цель
-        --    Это превращает игрока в "снаряд" — при столкновении
-        --    сервер применяет импульс к маньяку
         local dir = (targetPos - myRoot.Position)
         if dir.Magnitude < 0.1 then dir = Vector3.new(0, 0, 1) end
         dir = dir.Unit
@@ -1057,13 +1218,11 @@ local function FlingMurderer(target)
         myRoot.AssemblyLinearVelocity = dir * CFG.FlingVelocity + Vector3.new(0, CFG.FlingUpBoost, 0)
         myRoot.AssemblyAngularVelocity = Vector3.new(0, 50000, 0)
 
-        -- 3) Fire touch — критично, чтобы сервер "увидел" контакт
         pcall(function()
             firetouchinterest(myRoot, target, 0)
             firetouchinterest(myRoot, target, 1)
         end)
 
-        -- 4) Дополнительно: толкаем цель напрямую (сработает, если цель на нашей сети)
         pcall(function()
             target.AssemblyLinearVelocity = -dir * CFG.FlingVelocity + Vector3.new(0, CFG.FlingUpBoost, 0)
         end)
@@ -1273,6 +1432,28 @@ Toggle(PlayerTab, "knife", "Fling Murderer (Touch)", false, function(s)
     end
 end)
 
+Toggle(PlayerTab, "knife", "Kill Aura (Маньяк)", false, function(s)
+    State.killAura = s
+    if s then
+        StartKillAura()
+        Notify("Kill Aura", "Включена (радиус " .. CFG.KillAuraRadius .. ")", 2, "success")
+    else
+        StopKillAura()
+        Notify("Kill Aura", "Выключена", 2)
+    end
+end)
+
+Toggle(PlayerTab, "gun", "Auto Pick Gun (TP)", false, function(s)
+    State.autoGun = s
+    if s then
+        StartAutoGun()
+        Notify("Auto Pick Gun", "Включен (ищет выпавший пистолет)", 2, "success")
+    else
+        StopAutoGun()
+        Notify("Auto Pick Gun", "Выключен", 2)
+    end
+end)
+
 -- ═══════════════════════ ESP TAB ═══════════════════════
 local espHighlights = {}
 local function ClearESP()
@@ -1353,7 +1534,7 @@ New("TextLabel", {
     Position = UDim2.new(0, 12, 0, 8), Parent = infoCard,
 })
 New("TextLabel", {
-    Text = "MM2  •  " .. CFG.Version .. "  •  Touch Fling", Font = Enum.Font.Code, TextSize = 11,
+    Text = "MM2  •  " .. CFG.Version, Font = Enum.Font.Code, TextSize = 11,
     TextColor3 = CFG.TextSub, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 16),
     Position = UDim2.new(0, 12, 0, 30), Parent = infoCard,
@@ -1447,6 +1628,8 @@ end)
 unloader.MouseButton1Click:Connect(function()
     StopFarmEngine()
     StopFling()
+    StopKillAura()
+    StopAutoGun()
     ClearESP()
     ClearCoinESP()
     RestoreCollision()
@@ -1526,6 +1709,6 @@ end)
 task.wait(0.3)
 SetMenuOpen(true)
 task.delay(0.4, function()
-    Notify("Fable Hub MM2", "Touch Fling готов (" .. CFG.Version .. ")", 3, "success")
+    Notify("Fable Hub MM2", "v2.3.3 загружен", 3, "success")
 end)
-print("[FableHub MM2] v2.2.0 loaded — Touch Fling, Innocent ESP, Silent Aim")
+print("[FableHub MM2] v2.3.3 loaded OK")
