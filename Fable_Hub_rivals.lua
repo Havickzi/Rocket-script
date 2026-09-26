@@ -1,8 +1,9 @@
 --[[
-    FABLE HUB RIVALS v2.0.0
-    Rivals Cheat Script — Universal Edition
+    FABLE HUB RIVALS v2.1.0
+    Rivals Cheat Script — Universal Edition (Center FOV)
     Визуал: Fable Hub (фиолетово-маджентовый премиум)
     Функционал: Universal Premium Hub v4.0 (адаптирован под Rivals)
+    Особенность: FOV-круги и логика аима всегда по центру экрана
 --]]
 
 local CoreGui           = game:GetService("CoreGui")
@@ -26,7 +27,7 @@ pcall(function()
 end)
 
 local CFG = {
-    Version     = "v2.0.0",
+    Version     = "v2.1.0",
     Accent1     = Color3.fromRGB(139, 92, 246),
     Accent2     = Color3.fromRGB(217, 70, 239),
     Accent3     = Color3.fromRGB(99, 102, 241),
@@ -108,8 +109,6 @@ local Config = {
         AccentColor = {R = 0.54, G = 0.36, B = 0.96},
     },
 }
-
-local State = {}
 
 -- ═══════════════════════ УТИЛИТЫ ═══════════════════════
 local function New(cls, props, kids)
@@ -1014,7 +1013,7 @@ New("TextLabel", {
     Position = UDim2.new(0.5, 0, 0, 0), Parent = StatusBar, ZIndex = 4,
 })
 
--- ═══════════════════════ FOV CIRCLES ═══════════════════════
+-- ═══════════════════════ FOV CIRCLES (ЦЕНТР ЭКРАНА) ═══════════════════════
 local FOVCircle, SilentAimFOVCircle
 if HasDrawing then
     pcall(function()
@@ -1035,7 +1034,7 @@ if HasDrawing then
     end)
 end
 
--- ═══════════════════════ TARGET ACQUISITION ═══════════════════════
+-- ═══════════════════════ TARGET ACQUISITION (ЦЕНТР ЭКРАНА) ═══════════════════════
 local function IsVisible(part)
     if not Config.Aimbot.WallCheck then return true end
     local origin = Camera.CFrame.Position
@@ -1054,7 +1053,7 @@ local LastTargetUpdate, CachedTarget, CachedFOV = 0, nil, nil
 local function GetClosestTargetRaw(customFOV)
     local closest = nil
     local shortest = customFOV or Config.Aimbot.FOV
-    local mousePos = UserInputService:GetMouseLocation()
+    local screenCenter = Camera.ViewportSize / 2
     for _, p in ipairs(Players:GetPlayers()) do
         local allowed = not Config.Aimbot.TeamCheck or IsEnemy(p)
         if p ~= LocalPlayer and IsAlive(p) and allowed then
@@ -1067,7 +1066,7 @@ local function GetClosestTargetRaw(customFOV)
                         local mag = (parts.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude
                         if mag <= Config.Aimbot.MaxDistance then
                             local v = Vector2.new(sp.X, sp.Y)
-                            local d = (v - mousePos).Magnitude
+                            local d = (v - screenCenter).Magnitude
                             if d < shortest and IsVisible(tp) then
                                 shortest = d
                                 closest = p
@@ -1262,9 +1261,9 @@ local function UniversalAimAt(targetPart, smoothness)
     if not targetPart then return end
     local sp, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
     if onScreen then
-        local mp = UserInputService:GetMouseLocation()
-        local dx = (sp.X - mp.X) / math.max(1, smoothness)
-        local dy = (sp.Y - mp.Y) / math.max(1, smoothness)
+        local screenCenter = Camera.ViewportSize / 2
+        local dx = (sp.X - screenCenter.X) / math.max(1, smoothness)
+        local dy = (sp.Y - screenCenter.Y) / math.max(1, smoothness)
         if typeof(native_mousemoverel) == "function" or VirtualInputManager then
             mousemoverel(dx, dy)
         else
@@ -1301,7 +1300,8 @@ local function CreatePlayerESP(player)
         o.HealthBarBG.Filled = true
         o.HealthBarBG.Visible = false
         o.HealthBar.Thickness = 1
-        o.HealthBar.Filled = true        o.HealthBar.Visible = false
+        o.HealthBar.Filled = true
+        o.HealthBar.Visible = false
         o.Name.Size = 14
         o.Name.Center = true
         o.Name.Outline = true
@@ -1864,17 +1864,17 @@ end)
 
 -- ═══════════════════════ MAIN LOOPS ═══════════════════════
 RunService.RenderStepped:Connect(function()
-    -- FOV circles
+    -- FOV-круги всегда по центру экрана
     if HasDrawing then
-        local mp = UserInputService:GetMouseLocation()
+        local screenCenter = Camera.ViewportSize / 2
         if FOVCircle then
-            FOVCircle.Position = mp
+            FOVCircle.Position = screenCenter
             FOVCircle.Radius = Config.Aimbot.FOV
             FOVCircle.Color = TableToColor(Config.Aimbot.FOVColor)
             FOVCircle.Visible = Config.Aimbot.Enabled and Config.Aimbot.ShowFOV
         end
         if SilentAimFOVCircle then
-            SilentAimFOVCircle.Position = mp
+            SilentAimFOVCircle.Position = screenCenter
             SilentAimFOVCircle.Radius = Config.Aimbot.SilentAimFOV
             SilentAimFOVCircle.Color = TableToColor(Config.Aimbot.SilentAimFOVColor)
             SilentAimFOVCircle.Visible = Config.Aimbot.Enabled and Config.Aimbot.SilentAim and Config.Aimbot.ShowSilentAimFOV
