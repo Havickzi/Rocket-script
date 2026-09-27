@@ -1,9 +1,9 @@
 --[[
-    FABLE HUB AUTO-LOADER v1.1 (Key System + Telegram)
+    FABLE HUB AUTO-LOADER v1.2 (Key System + Telegram)
     Автоматически определяет игру и загружает нужный скрипт
-    Новое:
     - Key-система с кодом FREE
     - Кнопка перехода в Telegram-канал
+    - Подробные ошибки загрузки в консоль
 --]]
 
 local Players = game:GetService("Players")
@@ -16,7 +16,7 @@ local LP = Players.LocalPlayer
 -- ═══════════════════════ КОНФИГ ═══════════════════════
 local VALID_KEYS = {
     ["FREE"] = true,
-    ["FABLE"] = true, -- добавь свои ключи сюда
+    ["FABLE"] = true,
 }
 
 local TELEGRAM_URL = "https://t.me/Fable_Hub"
@@ -32,8 +32,8 @@ local GAMES = {
     },
     [286090429] = {
         name = "Arsenal",
-        desc = "Aimbot, ESP",
-        version = "v1.0.0",
+        desc = "Aimbot, ESP, Team/Wall Check",
+        version = "v1.1.0",
         url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_Hub_arsenal.lua",
     },
     [2753915549] = {
@@ -127,15 +127,38 @@ end
 -- ═══════════════════════ ЗАГРУЗКА СКРИПТА ═══════════════════════
 local function LoadScript(scriptData)
     print("[FableHub] Загружаю: " .. scriptData.name .. " " .. scriptData.version)
-    local success, err = pcall(function()
-        loadstring(game:HttpGet(scriptData.url))()
+    print("[FableHub] URL: " .. scriptData.url)
+
+    local ok, response = pcall(function()
+        return game:HttpGet(scriptData.url)
     end)
+
+    if not ok then
+        warn("[FableHub] Не скачал: " .. tostring(response))
+        return false, "Не скачал: " .. tostring(response)
+    end
+
+    if not response or #response < 50 then
+        warn("[FableHub] Пустой ответ, размер: " .. tostring(response and #response or 0))
+        return false, "Пустой ответ с сервера"
+    end
+
+    print("[FableHub] Скачано байт: " .. #response)
+
+    local fn, loadErr = loadstring(response)
+    if not fn then
+        warn("[FableHub] Ошибка компиляции: " .. tostring(loadErr))
+        return false, "Компиляция: " .. tostring(loadErr)
+    end
+
+    local success, runErr = pcall(fn)
     if success then
         print("[FableHub] " .. scriptData.name .. " загружен ✓")
+        return true
     else
-        warn("[FableHub] Ошибка загрузки: " .. tostring(err))
+        warn("[FableHub] Ошибка выполнения: " .. tostring(runErr))
+        return false, "Выполнение: " .. tostring(runErr)
     end
-    return success
 end
 
 -- ═══════════════════════ GUI ═══════════════════════
@@ -531,23 +554,43 @@ local function AddGameButton(key, scriptData)
     end)
 end
 
--- Показать экран выбора игр
+-- Показать экран выбора игр / загрузить автоматически
 local function ShowGameScreen()
     local detected = DetectGame()
     if detected then
         print("[FableHub] Обнаружена игра: " .. detected.name)
-        LoadScript(detected)
-        ScreenGui:Destroy()
+        StatusLbl.Text = "Загружаю " .. detected.name .. "..."
+        StatusLbl.TextColor3 = CFG.Accent2
+
+        local ok, err = LoadScript(detected)
+        if ok then
+            task.wait(0.5)
+            pcall(function() ScreenGui:Destroy() end)
+        else
+            StatusLbl.Text = "⚠ Ошибка загрузки — смотри консоль"
+            StatusLbl.TextColor3 = CFG.Danger
+            -- Показываем ошибку прямо в окне
+            local errLbl = New("TextLabel", {
+                Size = UDim2.new(1, -40, 0, 44),
+                Position = UDim2.new(0, 20, 0, 262),
+                BackgroundTransparency = 1,
+                Text = "⚠ " .. tostring(err),
+                Font = Enum.Font.Gotham,
+                TextSize = 10,
+                TextColor3 = CFG.Danger,
+                TextWrapped = true,
+                ZIndex = 10,
+                Parent = KeyScreen,
+            })
+        end
         return
     end
 
-    -- Анимация смены экрана
+    -- Если игра не определена — показать список
     Tw(KeyScreen, 0.25, { Position = UDim2.new(-1, 0, 0, 0) })
     GameScreen.Visible = true
     GameScreen.Position = UDim2.new(1, 0, 0, 0)
     Tw(GameScreen, 0.3, { Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quint)
-
-    -- Размер окна под список
     Tw(Main, 0.3, { Size = UDim2.new(0, 440, 0, 480), Position = UDim2.new(0.5, -220, 0.5, -240) })
 end
 
@@ -597,7 +640,7 @@ TgBtn.MouseEnter:Connect(function()
     for _, f in ipairs(TgBtn:GetDescendants()) do
         if f:IsA("TextLabel") then
             Tw(f, 0.15, { TextColor3 = Color3.fromRGB(255, 255, 255) })
-        elseif f:IsA("Frame") and f ~= tgIcon then
+        elseif f:IsA("Frame") and f ~= tgIcon and f ~= tgArrow then
             Tw(f, 0.15, { BackgroundColor3 = Color3.fromRGB(255, 255, 255) })
         end
     end
@@ -609,7 +652,7 @@ TgBtn.MouseLeave:Connect(function()
         if f:IsA("TextLabel") then
             local isSub = f.Text == TELEGRAM_HANDLE
             Tw(f, 0.15, { TextColor3 = isSub and CFG.TextSub or CFG.Accent2 })
-        elseif f:IsA("Frame") and f ~= tgIcon then
+        elseif f:IsA("Frame") and f ~= tgIcon and f ~= tgArrow then
             Tw(f, 0.15, { BackgroundColor3 = CFG.Accent2 })
         end
     end
@@ -658,9 +701,9 @@ Tw(Main, 0.4, { Size = UDim2.new(0, 440, 0, 340) }, Enum.EasingStyle.Back)
 task.wait(0.5)
 pcall(function() KeyInput:CaptureFocus() end)
 
--- Заполняем список игр заранее (для случая, когда ключ верный)
+-- Заполняем список игр заранее (для случая, когда ключ верный, но игра не определилась)
 for key, scriptData in pairs(GAMES) do
     AddGameButton(key, scriptData)
 end
 
-print("[FableHub Auto-Loader] Key System загружен. Ожидание ключа...")
+print("[FableHub Auto-Loader v1.2] Key System загружен. Ожидание ключа...")
