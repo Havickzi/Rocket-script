@@ -32,9 +32,9 @@ local GAMES = {
     },
     [286090429] = {
         name = "Arsenal",
-        desc = "Aimbot, ESP, Auto-Farm",
+        desc = "Aimbot, ESP",
         version = "v1.0.0",
-        url = "https://gist.githubusercontent.com/.../fablehub-arsenal.lua",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_Hub_arsenal.lua",
     },
     [2753915549] = {
         name = "Blox Fruits",
