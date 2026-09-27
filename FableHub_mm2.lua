@@ -1,5 +1,5 @@
 --[[
-    FABLE HUB MM2 v2.3.3
+    FABLE HUB MM2 v2.4.0
     Murder Mystery 2 Cheat Script
     - Fling Murderer (Touch Fling)
     - Kill Aura (Murderer)
@@ -7,6 +7,8 @@
     - Innocent ESP
     - Silent Aim (Gun)
     - Auto Farm (Anti-Kick)
+    - Speed Hack (16-60)
+    - Fly (WASD + Space/Shift + Ctrl boost)
 --]]
 
 if game.PlaceId ~= 142823291 then
@@ -27,7 +29,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
 local CFG = {
-    Version     = "v2.3.3",
+    Version     = "v2.4.0",
     Accent1     = Color3.fromRGB(139, 92, 246),
     Accent2     = Color3.fromRGB(217, 70, 239),
     Accent3     = Color3.fromRGB(99, 102, 241),
@@ -56,6 +58,8 @@ local CFG = {
     FlingDuration  = 3,
     FlingLoopDelay = 3.5,
     KillAuraRadius = 12,
+    SpeedValue     = 45,
+    FlySpeed       = 90,
 }
 
 local State = {
@@ -73,6 +77,8 @@ local State = {
     flingMurderer = false,
     killAura      = false,
     autoGun       = false,
+    speedHack     = false,
+    fly           = false,
 }
 
 local function New(cls, props, kids)
@@ -201,6 +207,17 @@ local function MakeIcon(parent, name, size, color)
     elseif name == "trash" then
         shape(0.62, 0.09, 0.5, 0.12, 0, UDim.new(1, 0))
         shape(0.68, 0.55, 0.5, 0.62, 0, UDim.new(0, 2))
+    elseif name == "bolt" then
+        shape(0.28, 0.45, 0.42, 0.28, -15, UDim.new(0, 1))
+        shape(0.28, 0.45, 0.58, 0.72, -15, UDim.new(0, 1))
+        shape(0.35, 0.1, 0.5, 0.5, -15)
+    elseif name == "bird" then
+        shape(0.55, 0.1, 0.32, 0.42, -20, UDim.new(1, 0))
+        shape(0.55, 0.1, 0.68, 0.42, 20, UDim.new(1, 0))
+        shape(0.22, 0.1, 0.5, 0.62, 0, UDim.new(1, 0))
+    elseif name == "slider" then
+        shape(0.85, 0.09, 0.5, 0.5, 0, UDim.new(1, 0))
+        shape(0.22, 0.22, 0.65, 0.5, 0, UDim.new(1, 0))
     elseif name == "x" then
         shape(0.85, 0.11, 0.5, 0.5, 45, UDim.new(1, 0))
         shape(0.85, 0.11, 0.5, 0.5, -45, UDim.new(1, 0))
@@ -621,6 +638,121 @@ local function Toggle(parent, iconName, text, def, cb)
     end)
 end
 
+-- ═══════════════════════ SLIDER ═══════════════════════
+local function Slider(parent, iconName, text, minVal, maxVal, default, suffix, cb)
+    local value = default or minVal
+    suffix = suffix or ""
+
+    local f = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 58),
+        BackgroundColor3 = CFG.BgPanel,
+        BackgroundTransparency = 0.15, BorderSizePixel = 0, Parent = parent,
+    })
+    Corner(f, UDim.new(0, 12))
+    local fStroke = Stroke(f, CFG.Accent1, 1, 0.75)
+
+    local iconBg = New("Frame", {
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(0, 8, 0, 8),
+        BackgroundColor3 = CFG.Accent1,
+        BackgroundTransparency = 0.82,
+        BorderSizePixel = 0, Parent = f,
+    })
+    Corner(iconBg, UDim.new(0, 8))
+    MakeIcon(iconBg, iconName, 14, CFG.Accent2)
+
+    New("TextLabel", {
+        Text = text, Font = Enum.Font.GothamMedium, TextSize = 12,
+        TextColor3 = CFG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+        BackgroundTransparency = 1, Size = UDim2.new(0.6, 0, 0, 20),
+        Position = UDim2.new(0, 44, 0, 8), Parent = f,
+    })
+
+    local valLabel = New("TextLabel", {
+        Text = tostring(value) .. suffix, Font = Enum.Font.GothamBold, TextSize = 12,
+        TextColor3 = CFG.Accent2, TextXAlignment = Enum.TextXAlignment.Right,
+        BackgroundTransparency = 1, Size = UDim2.new(0, 80, 0, 20),
+        Position = UDim2.new(1, -88, 0, 8), Parent = f,
+    })
+
+    local track = New("Frame", {
+        Size = UDim2.new(1, -88, 0, 5),
+        Position = UDim2.new(0, 44, 0, 36),
+        BackgroundColor3 = Color3.fromRGB(40, 40, 60),
+        BorderSizePixel = 0, Parent = f,
+    })
+    Corner(track, UDim.new(1, 0))
+
+    local fill = New("Frame", {
+        Size = UDim2.new((value - minVal) / (maxVal - minVal), 0, 1, 0),
+        BackgroundColor3 = CFG.Accent1,
+        BorderSizePixel = 0, Parent = track,
+    })
+    Corner(fill, UDim.new(1, 0))
+    Gradient(fill, CFG.Accent3, CFG.Accent2)
+
+    local knob = New("Frame", {
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new((value - minVal) / (maxVal - minVal), 0, 0.5, -7),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0, Parent = track,
+    })
+    Corner(knob, UDim.new(1, 0))
+
+    local hit = New("TextButton", {
+        Text = "", BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0), Parent = f,
+    })
+
+    local dragging = false
+    local function SetFromX(mouseX)
+        local absPos = track.AbsolutePosition
+        local absSize = track.AbsoluteSize
+        local alpha = math.clamp((mouseX - absPos.X) / absSize.X, 0, 1)
+        value = math.floor(minVal + alpha * (maxVal - minVal) + 0.5)
+        Tw(fill, 0.08, { Size = UDim2.new(alpha, 0, 1, 0) })
+        Tw(knob, 0.08, { Position = UDim2.new(alpha, 0, 0.5, -7) })
+        valLabel.Text = tostring(value) .. suffix
+        if cb then pcall(cb, value) end
+    end
+
+    hit.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            SetFromX(i.Position.X)
+        end
+    end)
+    hit.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            SetFromX(i.Position.X)
+        end
+    end)
+
+    f.MouseEnter:Connect(function()
+        Tw(f, 0.15, { BackgroundColor3 = CFG.BgHover })
+        Tw(fStroke, 0.15, { Transparency = 0.45 })
+    end)
+    f.MouseLeave:Connect(function()
+        Tw(f, 0.15, { BackgroundColor3 = CFG.BgPanel })
+        Tw(fStroke, 0.15, { Transparency = 0.75 })
+    end)
+
+    return { SetValue = function(v)
+        value = math.clamp(v, minVal, maxVal)
+        local alpha = (value - minVal) / (maxVal - minVal)
+        fill.Size = UDim2.new(alpha, 0, 1, 0)
+        knob.Position = UDim2.new(alpha, 0, 0.5, -7)
+        valLabel.Text = tostring(value) .. suffix
+        if cb then pcall(cb, value) end
+    end }
+end
+
 local Tabs = {}
 local function MakeTab(name, iconName)
     local b = New("TextButton", {
@@ -836,60 +968,93 @@ local function ApplySilentAim()
     cam.CFrame = originalCF
 end
 
--- ═══════════════════════ MAIN TAB ═══════════════════════
-Section(MainTab, "Авто-фарм")
-Toggle(MainTab, "coin", "Auto Farm монет (Anti-Kick)", false, function(s)
-    State.autoFarm = s
-    if s then Notify("Auto Farm", "Включен (Anti-Kick Mode)", 2.5, "success")
-    else Notify("Auto Farm", "Выключен", 2) end
-end)
+-- ═══════════════════════ SPEED HACK ═══════════════════════
+local DEFAULT_WALKSPEED = 16
 
-Section(MainTab, "Утилиты")
-Toggle(MainTab, "clock", "Anti-AFK", false, function(s) State.antiAfk = s end)
-Toggle(MainTab, "sun", "Fullbright", false, function(s)
-    State.fullbright = s
-    if s then
-        Lighting.Brightness = 3
-        Lighting.Ambient = Color3.fromRGB(200, 200, 200)
-        Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
-        Lighting.ClockTime = 14
+local function ApplySpeed()
+    if not humanoid or humanoid.Health <= 0 then return end
+    if State.speedHack then
+        humanoid.WalkSpeed = CFG.SpeedValue
     else
-        Lighting.Brightness = 1
-        Lighting.Ambient = Color3.fromRGB(70, 70, 70)
-        Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 70)
+        humanoid.WalkSpeed = DEFAULT_WALKSPEED
     end
-end)
-
-Section(MainTab, "ESP и Aim")
-Toggle(MainTab, "coin", "Coin ESP", false, function(s)
-    State.coinESP = s
-    if s then UpdateCoinESP(); Notify("Coin ESP", "Включен", 2, "success")
-    else ClearCoinESP(); Notify("Coin ESP", "Выключен", 2) end
-end)
-
-Toggle(MainTab, "target", "Silent Aim (Gun)", false, function(s)
-    State.silentAim = s
-    if s then
-        CreateFOVCircle()
-        Notify("Silent Aim", "Включен (только для Gun)", 2.5, "success")
-    else
-        if silentAimCircle then silentAimCircle.Visible = false end
-        Notify("Silent Aim", "Выключен", 2)
-    end
-end)
+end
 
 task.spawn(function()
     while true do
-        task.wait(60)
-        if State.antiAfk then
-            pcall(function()
-                local vu = game:GetService("VirtualUser")
-                vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
-            end)
+        task.wait(0.1)
+        if State.speedHack and humanoid and humanoid.Health > 0 then
+            ApplySpeed()
         end
     end
 end)
+
+-- ═══════════════════════ FLY ═══════════════════════
+local flyBV = nil
+local flyBG = nil
+local flyConn = nil
+
+local function StopFly()
+    if flyBV then pcall(function() flyBV:Destroy() end) flyBV = nil end
+    if flyBG then pcall(function() flyBG:Destroy() end) flyBG = nil end
+    if flyConn then pcall(function() flyConn:Disconnect() end) flyConn = nil end
+    if humanoid then
+        pcall(function() humanoid.PlatformStand = false end)
+    end
+    if rootPart and rootPart.Parent then
+        pcall(function() rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+    end
+end
+
+local function StartFly()
+    if flyConn then return end
+    if not rootPart or not rootPart.Parent then return end
+
+    pcall(function() humanoid.PlatformStand = true end)
+
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.Name = "FH_FlyBV"
+    flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    flyBV.Velocity = Vector3.new(0, 0, 0)
+    flyBV.P = 1250
+    flyBV.Parent = rootPart
+
+    flyBG = Instance.new("BodyGyro")
+    flyBG.Name = "FH_FlyBG"
+    flyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    flyBG.P = 10000
+    flyBG.D = 100
+    flyBG.CFrame = rootPart.CFrame
+    flyBG.Parent = rootPart
+
+    flyConn = RunService.RenderStepped:Connect(function()
+        if not State.fly then return end
+        if not rootPart or not rootPart.Parent then return end
+        if not humanoid or humanoid.Health <= 0 then return end
+
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+
+        local moveDir = Vector3.new(0, 0, 0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+
+        local speed = CFG.FlySpeed
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then speed = speed * 2 end
+
+        if moveDir.Magnitude > 0 then
+            flyBV.Velocity = moveDir.Unit * speed
+        else
+            flyBV.Velocity = Vector3.new(0, 0, 0)
+        end
+
+        flyBG.CFrame = CFrame.new(rootPart.Position, rootPart.Position + cam.CFrame.LookVector)
+    end)
+end
 
 -- ═══════════════════════ SAFE NOCLIP ═══════════════════════
 local NOCLIP_PARTS = { HumanoidRootPart = true, UpperTorso = true, LowerTorso = true, Torso = true, Head = true }
@@ -1387,15 +1552,123 @@ task.spawn(function()
     end
 end)
 
+-- ═══════════════════════ SPEED RESET BINDING ═══════════════════════
+local function BindSpeedReset()
+    if not humanoid then return end
+    humanoid.HealthChanged:Connect(function(h)
+        if h <= 0 and State.speedHack then
+            State.speedHack = false
+            CFG.SpeedValue = 45
+            Notify("Speed Hack", "Авто-отключён (ресет)", 3, "error")
+        end
+    end)
+end
+
+if humanoid then BindSpeedReset() end
+
 LocalPlayer.CharacterAdded:Connect(function(ch)
     task.wait(0.5)
     SetupChar(ch)
     if State.autoFarm then StopFarmEngine(); task.wait(0.1); StartFarmEngine() end
     if State.noclip then ApplyNoclip() end
+    if State.speedHack then ApplySpeed() end
+    if State.fly then
+        StopFly()
+        task.wait(0.2)
+        StartFly()
+    end
+    task.wait(0.1)
+    BindSpeedReset()
+end)
+
+-- ═══════════════════════ MAIN TAB ═══════════════════════
+Section(MainTab, "Авто-фарм")
+Toggle(MainTab, "coin", "Auto Farm монет (Anti-Kick)", false, function(s)
+    State.autoFarm = s
+    if s then Notify("Auto Farm", "Включен (Anti-Kick Mode)", 2.5, "success")
+    else Notify("Auto Farm", "Выключен", 2) end
+end)
+
+Section(MainTab, "Утилиты")
+Toggle(MainTab, "clock", "Anti-AFK", false, function(s) State.antiAfk = s end)
+Toggle(MainTab, "sun", "Fullbright", false, function(s)
+    State.fullbright = s
+    if s then
+        Lighting.Brightness = 3
+        Lighting.Ambient = Color3.fromRGB(200, 200, 200)
+        Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+        Lighting.ClockTime = 14
+    else
+        Lighting.Brightness = 1
+        Lighting.Ambient = Color3.fromRGB(70, 70, 70)
+        Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 70)
+    end
+end)
+
+Section(MainTab, "ESP и Aim")
+Toggle(MainTab, "coin", "Coin ESP", false, function(s)
+    State.coinESP = s
+    if s then UpdateCoinESP(); Notify("Coin ESP", "Включен", 2, "success")
+    else ClearCoinESP(); Notify("Coin ESP", "Выключен", 2) end
+end)
+
+Toggle(MainTab, "target", "Silent Aim (Gun)", false, function(s)
+    State.silentAim = s
+    if s then
+        CreateFOVCircle()
+        Notify("Silent Aim", "Включен (только для Gun)", 2.5, "success")
+    else
+        if silentAimCircle then silentAimCircle.Visible = false end
+        Notify("Silent Aim", "Выключен", 2)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(60)
+        if State.antiAfk then
+            pcall(function()
+                local vu = game:GetService("VirtualUser")
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new())
+            end)
+        end
+    end
 end)
 
 -- ═══════════════════════ PLAYER TAB ═══════════════════════
 Section(PlayerTab, "Передвижение")
+
+Toggle(PlayerTab, "bolt", "Speed Hack", false, function(s)
+    State.speedHack = s
+    if s then
+        ApplySpeed()
+        Notify("Speed Hack", "Скорость: " .. CFG.SpeedValue, 2, "success")
+    else
+        if humanoid then humanoid.WalkSpeed = DEFAULT_WALKSPEED end
+        Notify("Speed Hack", "Выключен", 2)
+    end
+end)
+
+Slider(PlayerTab, "slider", "Скорость ходьбы", 16, 60, CFG.SpeedValue, "", function(v)
+    CFG.SpeedValue = v
+    if State.speedHack then ApplySpeed() end
+end)
+
+Toggle(PlayerTab, "bird", "Fly (WASD + Space/Shift)", false, function(s)
+    State.fly = s
+    if s then
+        StartFly()
+        Notify("Fly", "WASD — полёт | Space — вверх | Shift — вниз | Ctrl — буст", 3.5, "success")
+    else
+        StopFly()
+        Notify("Fly", "Выключен", 2)
+    end
+end)
+
+Slider(PlayerTab, "slider", "Скорость полёта", 20, 150, CFG.FlySpeed, "", function(v)
+    CFG.FlySpeed = v
+end)
 
 Toggle(PlayerTab, "jump", "Infinite Jump", false, function(s) State.infJump = s end)
 UserInputService.JumpRequest:Connect(function()
@@ -1630,6 +1903,8 @@ unloader.MouseButton1Click:Connect(function()
     StopFling()
     StopKillAura()
     StopAutoGun()
+    StopFly()
+    if humanoid then pcall(function() humanoid.WalkSpeed = 16 end) end
     ClearESP()
     ClearCoinESP()
     RestoreCollision()
@@ -1709,6 +1984,6 @@ end)
 task.wait(0.3)
 SetMenuOpen(true)
 task.delay(0.4, function()
-    Notify("Fable Hub MM2", "v2.3.3 загружен", 3, "success")
+    Notify("Fable Hub MM2", "v2.4.0 загружен", 3, "success")
 end)
-print("[FableHub MM2] v2.3.3 loaded OK")
+print("[FableHub MM2] v2.4.0 loaded OK")
