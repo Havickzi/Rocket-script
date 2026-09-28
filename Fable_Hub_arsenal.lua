@@ -1,7 +1,7 @@
 --[[
-    FABLE HUB ARSENAL v1.1.0
+    FABLE HUB ARSENAL v1.2.0
     Original Visual + Arsenal Logic
-    - Aimbot (обычный, в тело)
+    - Aimbot (с выбором части тела: голова / тело / ноги)
     - FOV Circle
     - Team Check (не целится в союзников)
     - Wall Check (не целится сквозь стены)
@@ -28,7 +28,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
 local CFG = {
-    Version     = "v1.1.0-AR",
+    Version     = "v1.2.0-AR",
     Accent1     = Color3.fromRGB(139, 92, 246),
     Accent2     = Color3.fromRGB(217, 70, 239),
     Accent3     = Color3.fromRGB(99, 102, 241),
@@ -41,7 +41,15 @@ local CFG = {
     Danger      = Color3.fromRGB(248, 113, 113),
     TelegramURL    = "https://t.me/Fable_Hub",
     TelegramHandle = "@Fable_Hub",
-    AimPart        = "HumanoidRootPart",
+
+    -- Часть тела для аимбота
+    AimPart        = "Тело",
+    AimParts       = {
+        ["Голова"] = { "Head" },
+        ["Тело"]   = { "HumanoidRootPart", "UpperTorso", "Torso" },
+        ["Ноги"]   = { "LeftFoot", "RightFoot", "Left Leg", "Right Leg", "LowerTorso" },
+    },
+
     FOVRadius      = 200,
     FOVColor       = Color3.fromRGB(217, 70, 239),
     ESPColor       = Color3.fromRGB(255, 60, 60),
@@ -724,6 +732,107 @@ local function Slider(parent, iconName, text, minVal, maxVal, default, suffix, c
     end)
 end
 
+-- ═══════════════════ SELECTOR (выбор части тела) ═══════════════════
+local function Selector(parent, iconName, text, options, default, cb)
+    local current = default or options[1]
+
+    local f = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 76),
+        BackgroundColor3 = CFG.BgPanel,
+        BackgroundTransparency = 0.15, BorderSizePixel = 0, Parent = parent,
+    })
+    Corner(f, UDim.new(0, 12))
+    local fStroke = Stroke(f, CFG.Accent1, 1, 0.75)
+
+    local iconBg = New("Frame", {
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(0, 8, 0, 8),
+        BackgroundColor3 = CFG.Accent1,
+        BackgroundTransparency = 0.82,
+        BorderSizePixel = 0, Parent = f,
+    })
+    Corner(iconBg, UDim.new(0, 8))
+    MakeIcon(iconBg, iconName, 14, CFG.Accent2)
+
+    New("TextLabel", {
+        Text = text, Font = Enum.Font.GothamMedium, TextSize = 12,
+        TextColor3 = CFG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+        BackgroundTransparency = 1, Size = UDim2.new(0.6, 0, 0, 20),
+        Position = UDim2.new(0, 44, 0, 8), Parent = f,
+    })
+
+    local row = New("Frame", {
+        Size = UDim2.new(1, -52, 0, 30),
+        Position = UDim2.new(0, 44, 0, 36),
+        BackgroundTransparency = 1, Parent = f,
+    })
+    New("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = row,
+    })
+
+    local buttons = {}
+    local function refresh()
+        for name, btn in pairs(buttons) do
+            local active = (name == current)
+            Tw(btn, 0.15, {
+                BackgroundColor3 = active and CFG.Accent1 or Color3.fromRGB(40, 40, 60),
+                BackgroundTransparency = active and 0.05 or 0.1,
+            })
+            local lbl = btn:FindFirstChildOfClass("TextLabel")
+            if lbl then
+                Tw(lbl, 0.15, { TextColor3 = active and Color3.fromRGB(255, 255, 255) or CFG.TextSub })
+            end
+            if active and not btn:FindFirstChildOfClass("UIGradient") then
+                Gradient(btn, CFG.Accent3, CFG.Accent2)
+            elseif not active then
+                local g = btn:FindFirstChildOfClass("UIGradient")
+                if g then g:Destroy() end
+            end
+        end
+    end
+
+    for i, name in ipairs(options) do
+        local btn = New("TextButton", {
+            Text = "", BackgroundColor3 = Color3.fromRGB(40, 40, 60),
+            BackgroundTransparency = 0.1, BorderSizePixel = 0,
+            Size = UDim2.new(1 / #options, -4, 1, 0),
+            LayoutOrder = i, AutoButtonColor = false, Parent = row,
+        })
+        Corner(btn, UDim.new(0, 8))
+        New("TextLabel", {
+            Text = name, Font = Enum.Font.GothamMedium, TextSize = 11,
+            TextColor3 = CFG.TextSub, BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0), Parent = btn,
+        })
+        buttons[name] = btn
+
+        btn.MouseButton1Click:Connect(function()
+            current = name
+            refresh()
+            if cb then pcall(cb, name) end
+        end)
+        btn.MouseEnter:Connect(function()
+            if name ~= current then Tw(btn, 0.12, { BackgroundTransparency = 0 }) end
+        end)
+        btn.MouseLeave:Connect(function()
+            if name ~= current then Tw(btn, 0.12, { BackgroundTransparency = 0.1 }) end
+        end)
+    end
+    refresh()
+
+    f.MouseEnter:Connect(function()
+        Tw(f, 0.15, { BackgroundColor3 = CFG.BgHover })
+        Tw(fStroke, 0.15, { Transparency = 0.45 })
+    end)
+    f.MouseLeave:Connect(function()
+        Tw(f, 0.15, { BackgroundColor3 = CFG.BgPanel })
+        Tw(fStroke, 0.15, { Transparency = 0.75 })
+    end)
+end
+
 local Tabs = {}
 local function MakeTab(name, iconName)
     local b = New("TextButton", {
@@ -823,7 +932,7 @@ New("TextLabel", {
     Position = UDim2.new(0.5, 0, 0, 0), Parent = StatusBar, ZIndex = 4,
 })
 
--- ═══════════════════ AIMBOT (ОБЫЧНЫЙ) + TEAM/WALL CHECK ═══════════════════
+-- ═══════════════════ AIMBOT + TEAM/WALL CHECK ═══════════════════
 local fovCircle = nil
 local aimConn = nil
 
@@ -842,6 +951,16 @@ local function IsVisible(targetPart)
     return result.Instance:IsDescendantOf(targetPart.Parent)
 end
 
+local function GetTargetPart(char)
+    local parts = CFG.AimParts[CFG.AimPart]
+    if not parts then return nil end
+    for _, name in ipairs(parts) do
+        local p = char:FindFirstChild(name)
+        if p then return p end
+    end
+    return nil
+end
+
 local function GetClosestTarget()
     local center = Camera.ViewportSize / 2
     local closest, closestDist = nil, CFG.FOVRadius
@@ -850,9 +969,7 @@ local function GetClosestTarget()
         if p ~= LocalPlayer and p.Character then
             if State.teamCheck and p.Team == LocalPlayer.Team then continue end
 
-            local part = p.Character:FindFirstChild(CFG.AimPart)
-                or p.Character:FindFirstChild("UpperTorso")
-                or p.Character:FindFirstChild("Torso")
+            local part = GetTargetPart(p.Character)
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
             if part and hum and hum.Health > 0 then
                 if State.wallCheck and not IsVisible(part) then continue end
@@ -1003,15 +1120,20 @@ end)
 
 -- ═══════════════════ MAIN TAB ═══════════════════
 Section(MainTab, "Combat")
-Toggle(MainTab, "target", "Aimbot (в тело)", false, function(s)
+Toggle(MainTab, "target", "Aimbot", false, function(s)
     State.aimbot = s
     if s then
         StartAimbot()
-        Notify("Aimbot", "Включен (обычный, камера в тело)", 2.5, "success")
+        Notify("Aimbot", "Включен → " .. CFG.AimPart, 2.5, "success")
     else
         StopAimbot()
         Notify("Aimbot", "Выключен", 2)
     end
+end)
+
+Selector(MainTab, "target", "Часть тела", {"Голова", "Тело", "Ноги"}, CFG.AimPart, function(name)
+    CFG.AimPart = name
+    Notify("Aimbot", "Цель: " .. name, 1.8, "success")
 end)
 
 Slider(MainTab, "target", "FOV радиус", 50, 400, CFG.FOVRadius, "", function(v)
@@ -1251,6 +1373,6 @@ end)
 task.wait(0.3)
 SetMenuOpen(true)
 task.delay(0.4, function()
-    Notify("Fable Hub Arsenal", "v1.1.0 загружен", 3, "success")
+    Notify("Fable Hub Arsenal", "v1.2.0 загружен", 3, "success")
 end)
 print("[FableHub Arsenal] loaded OK")
