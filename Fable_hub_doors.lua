@@ -9,6 +9,11 @@
     - Transparent Hide, Third Person, Anti-AFK
 --]]
 
+if game.PlaceId ~= 6839171747 and game.PlaceId ~= 2440500124 then
+    warn("[FableHub] This script is for DOORS only!")
+    return
+end
+
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
