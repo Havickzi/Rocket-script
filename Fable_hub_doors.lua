@@ -1310,7 +1310,8 @@ local function ActivateAllPromptsIn(obj)
     for _, pp in ipairs(obj:GetDescendants()) do
         if pp:IsA("ProximityPrompt") then FirePrompt(pp) end
     end
-endlocal function StartAutoKey()
+end
+    local function StartAutoKey()
     if autoKeyActive then return end
     autoKeyActive = true
     autoKeyRoutine = task.spawn(function()
