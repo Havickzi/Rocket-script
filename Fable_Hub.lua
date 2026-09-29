@@ -1,9 +1,9 @@
 --[[
-    FABLE HUB AUTO-LOADER v1.3 (Key System + Telegram + DOORS)
+    FABLE HUB AUTO-LOADER v1.4 (Key System + Telegram + Auto-Detect)
     - Key-система с кодами FREE / FABLE
     - Кнопка перехода в Telegram-канал
     - Авто-определение игры по PlaceId / GameId
-    - DOORS добавлен
+    - БЕЗ экрана выбора игр — только автозагрузка
 --]]
 
 local Players = game:GetService("Players")
@@ -217,7 +217,7 @@ local Glow = New("Frame", {
 })
 Gradient(Glow, CFG.Accent1, CFG.Accent2, 90)
 
--- ═══════════════════════ KEY SYSTEM SCREEN ═══════════════════════
+-- ═══════════════════════ KEY SYSTEM ═══════════════════════
 local KeyScreen = New("Frame", {
     Size = UDim2.new(1, 0, 0, 340),
     BackgroundTransparency = 1,
@@ -410,152 +410,7 @@ New("TextLabel", {
     Parent = TgBtn,
 })
 
--- ═══════════════════════ GAME SELECT SCREEN ═══════════════════════
-local GameScreen = New("Frame", {
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 1,
-    Visible = false,
-    ZIndex = 3,
-    Parent = Main,
-})
-
-New("TextLabel", {
-    Text = "FABLE HUB",
-    Font = Enum.Font.GothamBold,
-    TextSize = 22,
-    TextColor3 = CFG.Text,
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 0, 30),
-    Position = UDim2.new(0, 0, 0, 12),
-    ZIndex = 4,
-    Parent = GameScreen,
-})
-
-New("TextLabel", {
-    Text = "Игра не определена. Выбери скрипт вручную:",
-    Font = Enum.Font.Gotham,
-    TextSize = 12,
-    TextColor3 = CFG.TextSub,
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 0, 18),
-    Position = UDim2.new(0, 0, 0, 42),
-    ZIndex = 4,
-    Parent = GameScreen,
-})
-
-New("TextLabel", {
-    Text = "PlaceId: " .. tostring(game.PlaceId) .. "  •  GameId: " .. tostring(game.GameId),
-    Font = Enum.Font.Code,
-    TextSize = 10,
-    TextColor3 = CFG.TextSub,
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 0, 16),
-    Position = UDim2.new(0, 0, 0, 62),
-    ZIndex = 4,
-    Parent = GameScreen,
-})
-
-local Scroll = New("ScrollingFrame", {
-    Size = UDim2.new(1, -20, 1, -160),
-    Position = UDim2.new(0, 10, 0, 86),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 3,
-    ScrollBarImageColor3 = CFG.Accent1,
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ZIndex = 4,
-    Parent = GameScreen,
-})
-New("UIListLayout", {
-    Padding = UDim.new(0, 6),
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Parent = Scroll,
-})
-
-local BackBtn = New("TextButton", {
-    Size = UDim2.new(0, 200, 0, 32),
-    Position = UDim2.new(0.5, -100, 1, -44),
-    BackgroundColor3 = CFG.BgPanel,
-    BorderSizePixel = 0,
-    Text = "← Назад к ключу",
-    Font = Enum.Font.GothamMedium,
-    TextSize = 12,
-    TextColor3 = CFG.TextSub,
-    AutoButtonColor = false,
-    ZIndex = 4,
-    Parent = GameScreen,
-})
-Corner(BackBtn, UDim.new(0, 10))
-
 -- ═══════════════════════ ЛОГИКА ═══════════════════════
-local function AddGameButton(key, scriptData)
-    local btn = New("TextButton", {
-        Size = UDim2.new(1, -8, 0, 56),
-        BackgroundColor3 = CFG.BgPanel,
-        BorderSizePixel = 0,
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 5,
-        Parent = Scroll,
-    })
-    Corner(btn, UDim.new(0, 10))
-    local bs = Stroke(btn, CFG.Accent1, 1, 0.75)
-
-    local nameLbl = New("TextLabel", {
-        Size = UDim2.new(1, -20, 0, 22),
-        Position = UDim2.new(0, 12, 0, 6),
-        BackgroundTransparency = 1,
-        Text = scriptData.name .. "  " .. scriptData.version,
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        TextColor3 = CFG.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 6,
-        Parent = btn,
-    })
-
-    New("TextLabel", {
-        Size = UDim2.new(1, -20, 0, 18),
-        Position = UDim2.new(0, 12, 0, 28),
-        BackgroundTransparency = 1,
-        Text = scriptData.desc .. "  (ID: " .. tostring(key) .. ")",
-        Font = Enum.Font.Gotham,
-        TextSize = 10,
-        TextColor3 = CFG.TextSub,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 6,
-        Parent = btn,
-    })
-
-    btn.MouseEnter:Connect(function()
-        Tw(btn, 0.15, { BackgroundColor3 = CFG.BgHover })
-        Tw(bs, 0.15, { Transparency = 0.4 })
-    end)
-    btn.MouseLeave:Connect(function()
-        Tw(btn, 0.15, { BackgroundColor3 = CFG.BgPanel })
-        Tw(bs, 0.15, { Transparency = 0.75 })
-    end)
-
-    btn.MouseButton1Click:Connect(function()
-        nameLbl.Text = scriptData.name .. " — загрузка..."
-        btn.BackgroundColor3 = CFG.Accent1
-
-        task.spawn(function()
-            local success = LoadScript(scriptData)
-            if success then
-                nameLbl.Text = scriptData.name .. " ✓"
-                btn.BackgroundColor3 = CFG.Success
-                task.wait(0.5)
-                ScreenGui:Destroy()
-            else
-                nameLbl.Text = scriptData.name .. " ✗ ошибка"
-                btn.BackgroundColor3 = CFG.Danger
-            end
-        end)
-    end)
-end
-
 local function ShowGameScreen()
     local detected = DetectGame()
     if detected then
@@ -568,29 +423,17 @@ local function ShowGameScreen()
             task.wait(0.5)
             pcall(function() ScreenGui:Destroy() end)
         else
-            StatusLbl.Text = "⚠ Ошибка загрузки — смотри консоль"
+            StatusLbl.Text = "⚠ Ошибка: " .. tostring(err)
             StatusLbl.TextColor3 = CFG.Danger
-            local errLbl = New("TextLabel", {
-                Size = UDim2.new(1, -40, 0, 44),
-                Position = UDim2.new(0, 20, 0, 262),
-                BackgroundTransparency = 1,
-                Text = "⚠ " .. tostring(err),
-                Font = Enum.Font.Gotham,
-                TextSize = 10,
-                TextColor3 = CFG.Danger,
-                TextWrapped = true,
-                ZIndex = 10,
-                Parent = KeyScreen,
-            })
         end
         return
     end
 
-    Tw(KeyScreen, 0.25, { Position = UDim2.new(-1, 0, 0, 0) })
-    GameScreen.Visible = true
-    GameScreen.Position = UDim2.new(1, 0, 0, 0)
-    Tw(GameScreen, 0.3, { Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quint)
-    Tw(Main, 0.3, { Size = UDim2.new(0, 440, 0, 480), Position = UDim2.new(0.5, -220, 0.5, -240) })
+    -- Игра НЕ поддерживается — просто закрываем
+    StatusLbl.Text = "⚠ Игра не поддерживается"
+    StatusLbl.TextColor3 = CFG.Danger
+    task.wait(2)
+    pcall(function() ScreenGui:Destroy() end)
 end
 
 local function ValidateKey()
@@ -671,31 +514,10 @@ TgBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-BackBtn.MouseEnter:Connect(function()
-    Tw(BackBtn, 0.15, { BackgroundColor3 = CFG.BgHover })
-end)
-BackBtn.MouseLeave:Connect(function()
-    Tw(BackBtn, 0.15, { BackgroundColor3 = CFG.BgPanel })
-end)
-BackBtn.MouseButton1Click:Connect(function()
-    Tw(GameScreen, 0.25, { Position = UDim2.new(1, 0, 0, 0) })
-    task.delay(0.2, function()
-        GameScreen.Visible = false
-        KeyScreen.Position = UDim2.new(-1, 0, 0, 0)
-        KeyScreen.Visible = true
-        Tw(KeyScreen, 0.3, { Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quint)
-    end)
-    Tw(Main, 0.3, { Size = UDim2.new(0, 440, 0, 340), Position = UDim2.new(0.5, -220, 0.5, 0) })
-end)
-
 Main.Size = UDim2.new(0, 0, 0, 0)
 Tw(Main, 0.4, { Size = UDim2.new(0, 440, 0, 340) }, Enum.EasingStyle.Back)
 
 task.wait(0.5)
 pcall(function() KeyInput:CaptureFocus() end)
 
-for key, scriptData in pairs(GAMES) do
-    AddGameButton(key, scriptData)
-end
-
-print("[FableHub Auto-Loader v1.3] Key System загружен. Ожидание ключа...")
+print("[FableHub Auto-Loader v1.4] Ожидание ключа...")
