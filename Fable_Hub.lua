@@ -1,9 +1,9 @@
 --[[
-    FABLE HUB AUTO-LOADER v1.2 (Key System + Telegram)
-    Автоматически определяет игру и загружает нужный скрипт
-    - Key-система с кодом FREE
+    FABLE HUB AUTO-LOADER v1.3 (Key System + Telegram + DOORS)
+    - Key-система с кодами FREE / FABLE
     - Кнопка перехода в Telegram-канал
-    - Подробные ошибки загрузки в консоль
+    - Авто-определение игры по PlaceId / GameId
+    - DOORS добавлен
 --]]
 
 local Players = game:GetService("Players")
@@ -65,6 +65,19 @@ local GAMES = {
         desc = "Skip Stage, Fly",
         version = "v1.0.0",
         url = "https://gist.githubusercontent.com/.../fablehub-toh.lua",
+    },
+    -- ═══ DOORS ═══
+    [6516141723] = {
+        name = "DOORS",
+        desc = "ESP, Auto Closet, Bypass, Show Seek Path",
+        version = "v1.5.5",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/FableHub_doors.lua",
+    },
+    [6839174341] = {
+        name = "DOORS (Super Hard Mode)",
+        desc = "ESP, Auto Closet, Bypass, Show Seek Path",
+        version = "v1.5.5",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/FableHub_doors.lua",
     },
 }
 
@@ -171,7 +184,6 @@ local ScreenGui = New("ScreenGui", {
     Parent = LP:WaitForChild("PlayerGui") or CoreGui,
 })
 
--- Затемнение фона
 local Backdrop = New("Frame", {
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundColor3 = Color3.fromRGB(0, 0, 0),
@@ -181,7 +193,6 @@ local Backdrop = New("Frame", {
     Parent = ScreenGui,
 })
 
--- Главное окно
 local Main = New("Frame", {
     Size = UDim2.new(0, 440, 0, 0),
     Position = UDim2.new(0.5, -220, 0.5, 0),
@@ -196,7 +207,6 @@ local Main = New("Frame", {
 Corner(Main, UDim.new(0, 18))
 Stroke(Main, CFG.Accent1, 1.5, 0.3)
 
--- Верхнее свечение
 local Glow = New("Frame", {
     Size = UDim2.new(1, 0, 0, 120),
     BackgroundColor3 = CFG.Accent1,
@@ -215,7 +225,6 @@ local KeyScreen = New("Frame", {
     Parent = Main,
 })
 
--- Логотип
 local LogoBadge = New("Frame", {
     Size = UDim2.new(0, 56, 0, 56),
     Position = UDim2.new(0.5, -28, 0, 22),
@@ -239,7 +248,6 @@ New("TextLabel", {
     Parent = LogoBadge,
 })
 
--- Заголовок
 New("TextLabel", {
     Text = "FABLE HUB",
     Font = Enum.Font.GothamBold,
@@ -264,7 +272,6 @@ New("TextLabel", {
     Parent = KeyScreen,
 })
 
--- Поле ввода ключа
 local KeyInputFrame = New("Frame", {
     Size = UDim2.new(0, 320, 0, 46),
     Position = UDim2.new(0.5, -160, 0, 156),
@@ -293,7 +300,6 @@ local KeyInput = New("TextBox", {
     Parent = KeyInputFrame,
 })
 
--- Кнопка "Активировать"
 local ActivateBtn = New("TextButton", {
     Size = UDim2.new(0, 320, 0, 44),
     Position = UDim2.new(0.5, -160, 0, 214),
@@ -311,7 +317,6 @@ Corner(ActivateBtn, UDim.new(0, 12))
 Gradient(ActivateBtn)
 local activateStroke = Stroke(ActivateBtn, Color3.fromRGB(255, 255, 255), 1.2, 0.6)
 
--- Статус-лейбл
 local StatusLbl = New("TextLabel", {
     Size = UDim2.new(1, -40, 0, 18),
     Position = UDim2.new(0, 20, 0, 264),
@@ -324,7 +329,6 @@ local StatusLbl = New("TextLabel", {
     Parent = KeyScreen,
 })
 
--- Кнопка Telegram
 local TgBtn = New("TextButton", {
     Size = UDim2.new(0, 320, 0, 34),
     Position = UDim2.new(0.5, -160, 0, 290),
@@ -339,7 +343,6 @@ local TgBtn = New("TextButton", {
 Corner(TgBtn, UDim.new(0, 10))
 local tgStroke = Stroke(TgBtn, CFG.Accent2, 1, 0.55)
 
--- Иконка самолётика
 local tgIcon = New("Frame", {
     Size = UDim2.new(0, 20, 0, 20),
     Position = UDim2.new(0, 12, 0.5, -10),
@@ -470,7 +473,6 @@ New("UIListLayout", {
     Parent = Scroll,
 })
 
--- Кнопка "Вернуться к вводу ключа"
 local BackBtn = New("TextButton", {
     Size = UDim2.new(0, 200, 0, 32),
     Position = UDim2.new(0.5, -100, 1, -44),
@@ -486,7 +488,7 @@ local BackBtn = New("TextButton", {
 })
 Corner(BackBtn, UDim.new(0, 10))
 
--- ═══════════════════════ ЛОГИКА KEY SYSTEM ═══════════════════════
+-- ═══════════════════════ ЛОГИКА ═══════════════════════
 local function AddGameButton(key, scriptData)
     local btn = New("TextButton", {
         Size = UDim2.new(1, -8, 0, 56),
@@ -554,7 +556,6 @@ local function AddGameButton(key, scriptData)
     end)
 end
 
--- Показать экран выбора игр / загрузить автоматически
 local function ShowGameScreen()
     local detected = DetectGame()
     if detected then
@@ -569,7 +570,6 @@ local function ShowGameScreen()
         else
             StatusLbl.Text = "⚠ Ошибка загрузки — смотри консоль"
             StatusLbl.TextColor3 = CFG.Danger
-            -- Показываем ошибку прямо в окне
             local errLbl = New("TextLabel", {
                 Size = UDim2.new(1, -40, 0, 44),
                 Position = UDim2.new(0, 20, 0, 262),
@@ -586,7 +586,6 @@ local function ShowGameScreen()
         return
     end
 
-    -- Если игра не определена — показать список
     Tw(KeyScreen, 0.25, { Position = UDim2.new(-1, 0, 0, 0) })
     GameScreen.Visible = true
     GameScreen.Position = UDim2.new(1, 0, 0, 0)
@@ -594,7 +593,6 @@ local function ShowGameScreen()
     Tw(Main, 0.3, { Size = UDim2.new(0, 440, 0, 480), Position = UDim2.new(0.5, -220, 0.5, -240) })
 end
 
--- Проверка ключа
 local function ValidateKey()
     local key = string.upper(string.gsub(KeyInput.Text, "%s", ""))
     if key == "" then
@@ -620,7 +618,6 @@ local function ValidateKey()
     end
 end
 
--- Обработчики
 ActivateBtn.MouseButton1Click:Connect(ValidateKey)
 KeyInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then ValidateKey() end
@@ -633,7 +630,6 @@ ActivateBtn.MouseLeave:Connect(function()
     Tw(ActivateBtn, 0.15, { Size = UDim2.new(0, 320, 0, 44), Position = UDim2.new(0.5, -160, 0, 214) })
 end)
 
--- Кнопка Telegram
 TgBtn.MouseEnter:Connect(function()
     Tw(TgBtn, 0.15, { BackgroundColor3 = CFG.Accent2, BackgroundTransparency = 0.15 })
     Tw(tgStroke, 0.15, { Transparency = 0.1 })
@@ -675,7 +671,6 @@ TgBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Кнопка "Назад"
 BackBtn.MouseEnter:Connect(function()
     Tw(BackBtn, 0.15, { BackgroundColor3 = CFG.BgHover })
 end)
@@ -693,17 +688,14 @@ BackBtn.MouseButton1Click:Connect(function()
     Tw(Main, 0.3, { Size = UDim2.new(0, 440, 0, 340), Position = UDim2.new(0.5, -220, 0.5, 0) })
 end)
 
--- ═══════════════════════ АНИМАЦИЯ ОТКРЫТИЯ ═══════════════════════
 Main.Size = UDim2.new(0, 0, 0, 0)
 Tw(Main, 0.4, { Size = UDim2.new(0, 440, 0, 340) }, Enum.EasingStyle.Back)
 
--- Начальный фокус
 task.wait(0.5)
 pcall(function() KeyInput:CaptureFocus() end)
 
--- Заполняем список игр заранее (для случая, когда ключ верный, но игра не определилась)
 for key, scriptData in pairs(GAMES) do
     AddGameButton(key, scriptData)
 end
 
-print("[FableHub Auto-Loader v1.2] Key System загружен. Ожидание ключа...")
+print("[FableHub Auto-Loader v1.3] Key System загружен. Ожидание ключа...")
