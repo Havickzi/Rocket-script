@@ -71,13 +71,13 @@ local GAMES = {
         name = "DOORS",
         desc = "ESP, Auto Closet, Bypass, Show Seek Path",
         version = "v1.5.5",
-        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/FableHub_doors.lua",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_hub_doors.lua",
     },
     [6839174341] = {
         name = "DOORS (Super Hard Mode)",
         desc = "ESP, Auto Closet, Bypass, Show Seek Path",
         version = "v1.5.5",
-        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/FableHub_doors.lua",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_hub_doors.lua",
     },
 }
 
