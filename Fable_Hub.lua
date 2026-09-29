@@ -67,7 +67,7 @@ local GAMES = {
         url = "https://gist.githubusercontent.com/.../fablehub-toh.lua",
     },
     -- ═══ DOORS ═══
-    [6516141723] = {
+    [6839171747] = {
         name = "DOORS",
         desc = "ESP, Auto Closet, Bypass, Show Seek Path",
         version = "v1.5.5",
