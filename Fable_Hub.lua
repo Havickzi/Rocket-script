@@ -1,9 +1,9 @@
 --[[
-    FABLE HUB AUTO-LOADER v1.4 (Key System + Telegram + Auto-Detect)
+    FABLE HUB AUTO-LOADER v1.5 (Key System + Telegram + Auto-Detect + Debug)
     - Key-система с кодами FREE / FABLE
     - Кнопка перехода в Telegram-канал
     - Авто-определение игры по PlaceId / GameId
-    - БЕЗ экрана выбора игр — только автозагрузка
+    - Отладочные принты в консоль
 --]]
 
 local Players = game:GetService("Players")
@@ -12,6 +12,10 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local LP = Players.LocalPlayer
+
+print("[FableHub] === Запуск лоадера v1.5 ===")
+print("[FableHub] PlaceId при старте: " .. tostring(game.PlaceId))
+print("[FableHub] GameId при старте: " .. tostring(game.GameId))
 
 -- ═══════════════════════ КОНФИГ ═══════════════════════
 local VALID_KEYS = {
@@ -66,7 +70,6 @@ local GAMES = {
         version = "v1.0.0",
         url = "https://gist.githubusercontent.com/.../fablehub-toh.lua",
     },
-    -- ═══ DOORS ═══
     [6839171747] = {
         name = "DOORS",
         desc = "ESP, Auto Closet, Bypass, Show Seek Path",
@@ -132,8 +135,24 @@ end
 local function DetectGame()
     local placeId = game.PlaceId
     local gameId = game.GameId
-    if GAMES[placeId] then return GAMES[placeId], "place" end
-    if GAMES[gameId] then return GAMES[gameId], "game" end
+
+    print("[FableHub] Проверка PlaceId: " .. tostring(placeId))
+    print("[FableHub] Проверка GameId: " .. tostring(gameId))
+
+    if GAMES[placeId] then
+        print("[FableHub] + Найдено по PlaceId: " .. GAMES[placeId].name)
+        return GAMES[placeId], "place"
+    end
+    if GAMES[gameId] then
+        print("[FableHub] + Найдено по GameId: " .. GAMES[gameId].name)
+        return GAMES[gameId], "game"
+    end
+
+    print("[FableHub] - Игра НЕ найдена")
+    print("[FableHub] Список поддерживаемых ID:")
+    for id, data in pairs(GAMES) do
+        print("   " .. tostring(id) .. " = " .. data.name)
+    end
     return nil, nil
 end
 
@@ -156,22 +175,31 @@ local function LoadScript(scriptData)
         return false, "Пустой ответ с сервера"
     end
 
+    -- Проверка на HTML (404/403)
+    local head = response:sub(1, 20):lower()
+    if head:find("<!doctype") or head:find("<html") or head:find("404") then
+        warn("[FableHub] URL вернул HTML, а не Lua. Проверь ссылку!")
+        return false, "Ссылка вернула HTML (404/403)"
+    end
+
     print("[FableHub] Скачано байт: " .. #response)
 
-    local fn, loadErr = loadstring(response)
-    if not fn then
-        warn("[FableHub] Ошибка компиляции: " .. tostring(loadErr))
-        return false, "Компиляция: " .. tostring(loadErr)
-    end
+    -- ⚠️ Запуск в отдельном потоке, чтобы не блокировать лоадер
+    task.spawn(function()
+        local fn, loadErr = loadstring(response)
+        if not fn then
+            warn("[FableHub] Ошибка компиляции: " .. tostring(loadErr))
+            return
+        end
+        local success, runErr = pcall(fn)
+        if not success then
+            warn("[FableHub] Ошибка выполнения: " .. tostring(runErr))
+        else
+            print("[FableHub] " .. scriptData.name .. " загружен OK")
+        end
+    end)
 
-    local success, runErr = pcall(fn)
-    if success then
-        print("[FableHub] " .. scriptData.name .. " загружен ✓")
-        return true
-    else
-        warn("[FableHub] Ошибка выполнения: " .. tostring(runErr))
-        return false, "Выполнение: " .. tostring(runErr)
-    end
+    return true
 end
 
 -- ═══════════════════════ GUI ═══════════════════════
@@ -181,7 +209,7 @@ local ScreenGui = New("ScreenGui", {
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     IgnoreGuiInset = true,
     DisplayOrder = 999,
-    Parent = LP:WaitForChild("PlayerGui") or CoreGui,
+    Parent = LP:FindFirstChild("PlayerGui") or CoreGui,
 })
 
 local Backdrop = New("Frame", {
@@ -325,6 +353,7 @@ local StatusLbl = New("TextLabel", {
     Font = Enum.Font.Gotham,
     TextSize = 11,
     TextColor3 = CFG.TextSub,
+    TextWrapped = true,
     ZIndex = 4,
     Parent = KeyScreen,
 })
@@ -418,28 +447,26 @@ local function ShowGameScreen()
         StatusLbl.Text = "Загружаю " .. detected.name .. "..."
         StatusLbl.TextColor3 = CFG.Accent2
 
+        task.wait(0.3)
         local ok, err = LoadScript(detected)
         if ok then
-            task.wait(0.5)
+            task.wait(0.8)
             pcall(function() ScreenGui:Destroy() end)
         else
-            StatusLbl.Text = "⚠ Ошибка: " .. tostring(err)
+            StatusLbl.Text = "Ошибка: " .. tostring(err)
             StatusLbl.TextColor3 = CFG.Danger
         end
         return
     end
 
-    -- Игра НЕ поддерживается — просто закрываем
-    StatusLbl.Text = "⚠ Игра не поддерживается"
+    StatusLbl.Text = "Игра не поддерживается"
     StatusLbl.TextColor3 = CFG.Danger
-    task.wait(2)
-    pcall(function() ScreenGui:Destroy() end)
 end
 
 local function ValidateKey()
     local key = string.upper(string.gsub(KeyInput.Text, "%s", ""))
     if key == "" then
-        StatusLbl.Text = "⚠ Введите ключ"
+        StatusLbl.Text = "Введите ключ"
         StatusLbl.TextColor3 = CFG.Danger
         Tw(keyStroke, 0.15, { Color = CFG.Danger, Transparency = 0.1 })
         task.delay(0.5, function() Tw(keyStroke, 0.3, { Color = CFG.Accent1, Transparency = 0.5 }) end)
@@ -447,14 +474,14 @@ local function ValidateKey()
     end
 
     if VALID_KEYS[key] then
-        StatusLbl.Text = "✓ Ключ верный! Загрузка..."
+        StatusLbl.Text = "Ключ верный! Загрузка..."
         StatusLbl.TextColor3 = CFG.Success
         Tw(keyStroke, 0.15, { Color = CFG.Success, Transparency = 0.1 })
         Tw(ActivateBtn, 0.2, { BackgroundColor3 = CFG.Success })
         task.wait(0.4)
         ShowGameScreen()
     else
-        StatusLbl.Text = "✗ Неверный ключ. Проверь Telegram-канал"
+        StatusLbl.Text = "Неверный ключ. Проверь Telegram-канал"
         StatusLbl.TextColor3 = CFG.Danger
         Tw(keyStroke, 0.15, { Color = CFG.Danger, Transparency = 0.1 })
         task.delay(0.8, function() Tw(keyStroke, 0.3, { Color = CFG.Accent1, Transparency = 0.5 }) end)
@@ -520,4 +547,4 @@ Tw(Main, 0.4, { Size = UDim2.new(0, 440, 0, 340) }, Enum.EasingStyle.Back)
 task.wait(0.5)
 pcall(function() KeyInput:CaptureFocus() end)
 
-print("[FableHub Auto-Loader v1.4] Ожидание ключа...")
+print("[FableHub Auto-Loader v1.5] Ожидание ключа...")
