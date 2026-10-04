@@ -48,11 +48,11 @@ local GAMES = {
         version = "v1.0.0",
         url = "https://gist.githubusercontent.com/.../fablehub-jailbreak.lua",
     },
-    [2788229376] = {
-        name = "Da Hood",
-        desc = "Aimbot, Silent Aim, Cash Farm",
+    [124216119978534] = {
+        name = "Ride a Pet",
+        desc = "Esp, speed hack",
         version = "v1.0.0",
-        url = "https://gist.githubusercontent.com/.../fablehub-dahood.lua",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_hub_pet.lua",
     },
     [3317778282] = {
         name = "Pet Simulator 99",
