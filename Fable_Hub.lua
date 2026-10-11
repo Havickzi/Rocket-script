@@ -40,11 +40,11 @@ local GAMES = {
         version = "v1.1.0",
         url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_Hub_arsenal.lua",
     },
-    [2753915549] = {
-        name = "Blox Fruits",
-        desc = "Auto Farm, Auto Raid",
+    [114234929420007] = {
+        name = "BloxStrike",
+        desc = "Esp, Aim bot",
         version = "v1.0.0",
-        url = "https://gist.githubusercontent.com/.../fablehub-bloxfruits.lua",
+        url = "https://raw.githubusercontent.com/Havickzi/Rocket-script/refs/heads/main/Fable_Hub_bloxstrike.lua",
     },
     [606849621] = {
         name = "Jailbreak",
